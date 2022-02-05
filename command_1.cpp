@@ -122,7 +122,7 @@ namespace h {
         TextEditorPos(std::string data) :TextEditor(data) {
             if (data.empty()) {
                 this->data.push_back("");
-            }
+            }//縦の長さが足りないとバグ
             maxSize = std::max_element(this->data.begin(), this->data.end(), [](std::string first, std::string second) {return first.size() < second.size(); })->size();
         }
 
@@ -276,8 +276,8 @@ int main(int argc, char* argv[]) {
         SetConsoleCP(codePage);
     }
     h::TextEditorPos editor(file.read().getContent());
-    h::Console console(editor.getMax(), editor.getHeight());
-    std::cout << editor.toString();
+    h::Console console(editor.getMax(), editor.getHeight()+1);
+    std::cout <<editor.toString();
     console.move(0, 0);
     while (true) {
         auto c = _getch();
