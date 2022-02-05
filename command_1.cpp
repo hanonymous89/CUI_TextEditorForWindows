@@ -36,7 +36,7 @@ namespace h {
         return 0 > index or arr.size() <= index;
     }
     template <class T>
-    inline auto beBigger(T &value,T second) {
+    inline auto beBigger(T& value, T second) {
         if (value < second) {
             value = second;
             return true;
@@ -102,11 +102,11 @@ namespace h {
             data[line].insert(column, 1, replace);
             return *this;
         }
-        auto& erase(int line,int column) {
+        auto& erase(int line, int column) {
             if (checkOutOfRange(data, line) || checkOutOfRange(data[line], column)) {
                 return *this;
             }
-            data[line].erase(column,1);
+            data[line].erase(column, 1);
             return *this;
         }
         auto toString() {
@@ -135,6 +135,9 @@ namespace h {
             if (data[y].size() <= x) {
                 x = data[y].size() - 1;
             }
+            if (x>0&&IsDBCSLeadByte(data[y][x-1])) {
+                --x;
+            }
             return *this;
         }
 
@@ -144,12 +147,16 @@ namespace h {
             if (data[y].size() <= x) {
                 x = data[y].size() - 1;
             }
+            if (x > 0 && IsDBCSLeadByte(data[y][x - 1])) {
+                --x;
+            }
             return *this;
         }
 
         auto& left() {
             if (x > 0) {
                 --x;
+                x -= (x > 0 && IsDBCSLeadByte(data[y][x - 1]));
                 return *this;
             }
             up();
@@ -158,7 +165,9 @@ namespace h {
         }
 
         auto& right() {
+            //x += (x < data[y].size()) + IsDBCSLeadByte(data[y][x]);
             if (x < data[y].size()) {
+                x += IsDBCSLeadByte(data[y][x]);
                 ++x;
                 return *this;
             }
@@ -185,38 +194,42 @@ namespace h {
             else
                 TextEditor::insert(y, x, replace);
             right();
-            if (maxSize <data[y].size())maxSize = data[y].size();
+            if (maxSize < data[y].size())maxSize = data[y].size();
             return data[y].substr(x - 1);
         }
         std::string backspace() {
-            if (!x) {
+            if (x<=0) {
                 if (!y)return data[y];
                 auto show = data[y];
                 left();
-                data[y]+=show;
-                data.erase(std::next(data.begin(),y+1));
+                data[y] += show;
+                data.erase(std::next(data.begin(), y + 1));
                 return show;
             }
-            TextEditor::erase(y, x - 1);
             left();
-            return data[y].substr(x);
+            if (IsDBCSLeadByte(data[y][x])) {
+                data[y].erase(x, 2);
+                return data[y].substr(x);
+            }
+            TextEditor::erase(y, x);
+            return data[y].substr(x-(x>0));
         }
-        auto enter() {
+        std::string enter() {
             auto length = data[y].size() - x;
-            data.insert(std::next(data.begin(),y+1), data[y].substr(x));
+            data.insert(std::next(data.begin(), y + 1), data[y].substr(x));
             data[y] = data[y].substr(0, x);
             ++y;
             x = 0;
             return std::string(length, ' ') + "\n" + data[y];
         }
-        auto &get() {
+        auto& get() {
             return data;
         }
     };
     class Console {
     private:
         HANDLE console;
-        short width,height;
+        short width, height;
     public:
         Console() {
             CONSOLE_SCREEN_BUFFER_INFO info;
@@ -228,39 +241,36 @@ namespace h {
             SetConsoleCursorPosition(console, { x,y });
             return *this;
         }
-        auto& setScrollSize(short width,short height) {
-            if ( beBigger(this->width, width) | beBigger(this->height, height)) {
-                SetConsoleScreenBufferSize(console,{width,this->height});
+        auto& setScrollSize(short width, short height) {
+            if (beBigger(this->width, width) | beBigger(this->height, height)) {
+                SetConsoleScreenBufferSize(console, { width,this->height });
             }
             return *this;
         }
-        auto &scroll(short line,bool up=false) {
+        auto& scroll(short line, bool up = false) {
             CHAR_INFO info;
             SMALL_RECT range;
             range.Left = 0;
             range.Right = width;
-            range.Top = line+up;
-            range.Bottom = height+up;
+            range.Top = line + up;
+            range.Bottom = height + up;
             info.Attributes = 0;
             info.Char.AsciiChar = ' ';
-            line+=!up;
-            ScrollConsoleScreenBuffer(console, &range, nullptr, {0,line}, &info);
+            line += !up;
+            ScrollConsoleScreenBuffer(console, &range, nullptr, { 0,line }, &info);
             return *this;
         }
     };
 }
-int main(int argc,char *argv[]) {
+int main(int argc, char* argv[]) {
     system("cls");
-
-    //get//
-
     h::Console console;
     h::File file("");
     if (argc > 1) {
         file.setName(argv[1]);
     }
     if (argc > 2) {
-        auto codePage=std::stoi(argv[2]);
+        auto codePage = std::stoi(argv[2]);
         SetConsoleOutputCP(codePage);
         SetConsoleCP(codePage);
     }
@@ -270,45 +280,45 @@ int main(int argc,char *argv[]) {
     while (true) {
         auto c = _getch();
         if (c == 0x1b) {
-           break;
+            break;
         }
         else if (c == 0x0d) {
             console.setScrollSize(editor.getMax(), editor.getHeight());
-            console.scroll(editor.getY()+1);
-            std::cout<<editor.enter();
-            
+            console.scroll(editor.getY() + 1);
+            std::cout << editor.enter();
+
         }
         else if (c == 8) {
             auto length = editor.getY();
-            console.move(editor.getX() - 1,editor.getY());
+            console.move(editor.getX() - 2, editor.getY());
             auto show = editor.backspace();
-            if(editor.getY()==length)
-                std::cout<<show<<"  ";
+            if (editor.getY() == length)
+                std::cout << show << "  ";
             else {
-                console.move(editor.getX() ,editor.getY());
+                console.move(editor.getX(), editor.getY());
                 std::cout << show;
-                console.scroll(length,true);
+                console.scroll(length, true);
             }
         }
         else if (c != 224) {
             std::cout << editor.insert(c);
-            console.setScrollSize(editor.getMax()+1,editor.getHeight());
+            console.setScrollSize(editor.getMax() + 1, editor.getHeight());
         }
         else {
             switch (_getch()) {
             case 0x48:
-                   editor.up();
-                   break;
-               case 0x50:
-                   editor.down();
-                  break;
-             case 0x4b:
-                  editor.left();
-                  break;
-              case 0x4d:
-                  editor.right();
-                  break;
-        }
+                editor.up();
+                break;
+            case 0x50:
+                editor.down();
+                break;
+            case 0x4b:
+                editor.left();
+                break;
+            case 0x4d:
+                editor.right();
+                break;
+            }
         }
         console.move(editor.getX(), editor.getY());
     }
@@ -317,6 +327,6 @@ int main(int argc,char *argv[]) {
         std::cout << "filename:";
         file.setName(*std::istream_iterator<std::string>(std::cin));
     }
-    file.write(editor.toString(),true);
-	return 0;
+    file.write(editor.toString(), true);
+    return 0;
 }
