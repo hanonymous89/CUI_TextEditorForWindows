@@ -132,7 +132,7 @@ namespace h {
         auto& up() {
             if (y <= 0)return *this;
             --y;
-            if (data[y].size() <= x) {
+            if (x&&data[y].size() <= x) {
                 x = data[y].size() - 1;
             }
             if (x>0&&IsDBCSLeadByte(data[y][x-1])) {
@@ -144,7 +144,7 @@ namespace h {
         auto& down() {
             if (data.size() <= y + 1)return *this;
             ++y;
-            if (data[y].size() <= x) {
+            if (x&&data[y].size() <= x) {
                 x = data[y].size() - 1;
             }
             if (x > 0 && IsDBCSLeadByte(data[y][x - 1])) {
@@ -231,22 +231,24 @@ namespace h {
         HANDLE console;
         short width, height;
     public:
-        Console() {
+        auto& setScrollSize(short width, short height) {
+            if (beBigger(this->width, width) | beBigger(this->height, height)) {
+                SetConsoleScreenBufferSize(console, { this->width,this->height });
+            }
+            return *this;
+        }
+        Console(short width,short height) {
             CONSOLE_SCREEN_BUFFER_INFO info;
             console = GetStdHandle(STD_OUTPUT_HANDLE);
             GetConsoleScreenBufferInfo(console, &info);
-            height = info.dwMaximumWindowSize.Y;
+            beBigger(height, info.dwMaximumWindowSize.Y);
+            setScrollSize(width,height);
         }
         auto& move(short x, short y) {
             SetConsoleCursorPosition(console, { x,y });
             return *this;
         }
-        auto& setScrollSize(short width, short height) {
-            if (beBigger(this->width, width) | beBigger(this->height, height)) {
-                SetConsoleScreenBufferSize(console, { width,this->height });
-            }
-            return *this;
-        }
+
         auto& scroll(short line, bool up = false) {
             CHAR_INFO info;
             SMALL_RECT range;
@@ -264,7 +266,6 @@ namespace h {
 }
 int main(int argc, char* argv[]) {
     system("cls");
-    h::Console console;
     h::File file("");
     if (argc > 1) {
         file.setName(argv[1]);
@@ -275,12 +276,31 @@ int main(int argc, char* argv[]) {
         SetConsoleCP(codePage);
     }
     h::TextEditorPos editor(file.read().getContent());
+    h::Console console(editor.getMax(), editor.getHeight());
     std::cout << editor.toString();
     console.move(0, 0);
     while (true) {
         auto c = _getch();
         if (c == 0x1b) {
-            break;
+            switch (_getch()) {
+            case 's':
+                if (file.getName().empty()) {
+                    console.move(0, editor.getHeight());
+                    std::cout << "filename:";
+                    file.setName(*std::istream_iterator<std::string>(std::cin));
+                }
+                file.write(editor.toString(), true);
+                break;
+            case 'c'://cmd
+                console.move(0, editor.getHeight());
+                *std::istream_iterator<std::string>(std::cin);
+                break;
+            case 'e':
+                return 0;
+                break;
+            }
+
+            continue;
         }
         else if (c == 0x0d) {
             console.setScrollSize(editor.getMax(), editor.getHeight());
@@ -322,11 +342,6 @@ int main(int argc, char* argv[]) {
         }
         console.move(editor.getX(), editor.getY());
     }
-    if (file.getName().empty()) {
-        console.move(0, editor.getHeight());
-        std::cout << "filename:";
-        file.setName(*std::istream_iterator<std::string>(std::cin));
-    }
-    file.write(editor.toString(), true);
+
     return 0;
 }
