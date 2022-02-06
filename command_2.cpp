@@ -9,6 +9,7 @@
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
+#include <functional>
 namespace h {
 
     inline auto split(std::wstring str, const std::wstring cut) noexcept(false) {
@@ -117,9 +118,10 @@ namespace h {
     //        return ss.str();
     //    }
     //};
+
     class Point {
     protected:
-        int x, y;
+        int x=0, y=0;
     public:
         virtual ~Point(){}
         virtual int up() = 0;
@@ -132,6 +134,14 @@ namespace h {
         virtual int getY() {
             return y;
         }
+    };
+    class InputManagerIntarface :public Point{
+    public:
+        virtual bool enter() = 0;
+        virtual bool backspace() = 0;
+        virtual bool insert(char) = 0;
+        virtual bool esc() = 0;
+        virtual void absolute() = 0;
     };
     class TextEditorPos:public Point{
     private:
@@ -307,18 +317,125 @@ namespace h {
             return *this;
         }
     };
-    class InputCmd {
+    class InputManager {
     private:
-        int x, y;
+        InputManagerIntarface* p;
+        //std::unordered_map<int, void(*)()> func;
+    public:
+        InputManager(InputManagerIntarface* p) {
+            this->p = p;
+        }
+        void input(std::function<void()> absolute/*=[] {}*/) {
+            if (p == nullptr)return;
+            bool loop = true;
+            while (loop) {
+                bool hit = true;
+                auto c = _getch();
+                switch (c) {
+                case 0x1b:
+                    loop = p->esc();
+                    break;
+                case 0x0d:
+                    loop = p->enter();
+                    break;
+                case 8:
+                    loop = p->backspace();
+                    break;
+                default:
+                    hit = false;
+                }
+                if (hit) {
+                    absolute();
+                    continue;
+                }
+                if (!hit && c != 224) {
+                    loop = p->insert(c);
+                    absolute();
+                    continue;
+                }
+                switch (_getch()) {
+                case 0x48:
+                    p->up();
+                    break;
+                case 0x50:
+                    p->down();
+                    break;
+                case 0x4b:
+                    p->left();
+                    break;
+                case 0x4d:
+                    p->right();
+                    break;
+                }
+                absolute();
+            }
+        }
+        void input() {
+            if (p == nullptr)return;
+            bool loop = true;
+            while (loop) {
+                bool hit = true;
+                auto c = _getch();
+                switch (c) {
+                case 0x1b:
+                    loop = p->esc();
+                    break;
+                case 0x0d:
+                    loop = p->enter();
+                    break;
+                case 8:
+                    loop = p->backspace();
+                    break;
+                default:
+                    hit = false;
+                }
+                if (hit) {
+                    p->absolute();
+                    continue;
+                }
+                if (!hit && c != 224) {
+                    loop = p->insert(c);
+                    p->absolute();
+                    continue;
+                }
+                switch (_getch()) {
+                case 0x48:
+                    p->up();
+                    break;
+                case 0x50:
+                    p->down();
+                    break;
+                case 0x4b:
+                    p->left();
+                    break;
+                case 0x4d:
+                    p->right();
+                    break;
+                }
+                p->absolute();
+            }
+        }
+    };
+    class InputCmd :public InputManagerIntarface{//インターフェイスにしてもいいかも setExe(key,funcValue())
+    private:
         std::string cmd,def;
     public:
         InputCmd(std::string def):def(def) {
 
         }
+        auto getCmd() {
+            return cmd;
+        }
+        auto toString() {
+            auto show = def + ">" + cmd;
+            show.insert(def.size() + x+1, "|");
+            return show;
+        }
         int left(){
-            if (x > 0) {
+            if (x >0) {
                 --x;
-                x -= (x > 0 && IsDBCSLeadByte(cmd[x - 1]));
+                
+                //x -= (x > 0 && IsDBCSLeadByte(cmd[x - 1]));
             }
             return x;
         }
@@ -330,17 +447,16 @@ namespace h {
             return x;
         }
         auto &setDefault(std::string def){
-            this->def = def;
+            this->def = def;//考える必要あり
             return *this;
         }
-        auto toString() {
-            return def + ">" + cmd;
+        
+        bool insert(char c) override{
+            cmd.insert(x, 1, c);
+            right();
+            return true;
         }
-        auto input(char c) {
-            cmd.insert(x,1,c);
-            return toString();
-        }
-        auto backspace() {
+        bool backspace() override{
             left();
             if (IsDBCSLeadByte(cmd[x])) {
                 cmd.erase(x, 2);
@@ -348,96 +464,43 @@ namespace h {
             else{
                 cmd.erase(x, 1);
             }
-            return toString();
-        }
-        auto& exe() {
+            return true;
+         }
+         bool enter() override{
+             return cmd.empty();
+         }
+         void absolute()override {}
+         int up() { return 0; }
+         int down() { return 0; }
+         bool esc()override{
+             return true;
+         }
 
-            return *this;
-        }
     };
-    //class InputManagerIntarface {
-    //public:
-    //    virtual void enter() = 0;
-    //    virtual void backspace() = 0;
-    //    virtual void move() = 0;
-    //    virtual void other() = 0;
-    //    virtual void esc() = 0;
-    //};
-    //class InputManager {
-    //private: 
-    //    InputManagerIntarface *p;
-    //    //std::unordered_map<int, void(*)()> func;
-    //public:
-    //    InputManager(InputManagerIntarface *p) {
-    //        this->p = p;
-    //    }
-    //    void input() {
-    //        auto c = _getch();
-    //        if (p == nullptr)return;
-    //        switch (c) {
-    //        case 0x1b:
-    //            p->esc();
-    //            return;
-    //            break;
-    //        case 0x0d:
-    //            p->enter();
-    //            return;
-    //            break;
-    //        case 8:
-    //            p->backspace();
-    //            return;
-    //            break;
-    //        }
-    //        if (c != 244) {
-    //            p->other();
-    //            return;
-    //        }
-    //    }
-    //};
-}
-int main(int argc, char* argv[]) {
-    system("cls");
-    h::File file("");
-    if (argc > 1) {
-        file.setName(argv[1]);
-    }
-    h::TextEditorPos editor(file.read().getContent());
-    h::Console::getInstance().setScrollSize(editor.getMax(), editor.getHeight() + 1);
-    if (argc > 2) {
-        h::Console::getInstance().setCodePage(std::stoi(argv[2]));
-    }
-    //std::string title;
-    //std::cin >> title;
-    //h::Console::getInstance().setTitle(h::stringToWstring(title));
-    //std::wcout << h::Console::getInstance().getTitle();
-    std::cout << editor.toString();
-    h::Console::getInstance().move(0, 0);
-    while (true) {
-        auto c = _getch();
-        if (c == 0x1b) {
+    class Vim:public InputManagerIntarface {
+    private:
+        File file;
+        TextEditorPos editor;
+    public:
+        Vim(int argc,char *argv[]):file(argc>1?argv[1]:""), editor(file.read().getContent()) {
+            system("cls");
+            h::Console::getInstance().setScrollSize(editor.getMax(), editor.getHeight() + 1);
+            if (argc > 2) {
+                h::Console::getInstance().setCodePage(std::stoi(argv[2]));
+            }
+            std::cout << editor.toString();
+            h::Console::getInstance().move(0, 0);
+        }
+        bool esc()override {
             switch (_getch()) {
             case 's':
                 if (file.getName().empty()) {
                     h::InputCmd cmd("filename");
                     h::Console::getInstance().setTitle(h::stringToWstring(cmd.toString()));
-                    while (true) {
-                        auto c = _getch();
-                        if (c == 0x1b)break;
-                        if (0x0d)cmd.exe();
-                        if (c == 8)h::Console::getInstance().setTitle(h::stringToWstring(cmd.backspace()));
-                        if (c != 224)h::Console::getInstance().setTitle(h::stringToWstring(cmd.input(c)));
-                        else {
-                            switch (_getch()) {
-                            case 0x4b:
-                                cmd.left();
-                                break;
-                            case 0x4d:
-                                cmd.right();
-                                break;
-                            }
-                        }
-                    }
-                    //file.setName(*std::istream_iterator<std::string>(std::cin));
+                    h::InputManager(&cmd).input([&] {
+                        h::Console::getInstance().setTitle(h::stringToWstring(cmd.toString()));
+                        });
+                    file.setName(cmd.getCmd());
                 }
                 file.write(editor.toString(), true);
                 break;
@@ -446,22 +509,22 @@ int main(int argc, char* argv[]) {
                 *std::istream_iterator<std::string>(std::cin);
                 break;
             case 'e':
-                return 0;
+                return false;
                 break;
             }
-
-            continue;
+            return true;
         }
-        else if (c == 0x0d) {
+        bool enter() override{
             h::Console::getInstance().setScrollSize(editor.getMax(), editor.getHeight());
             h::Console::getInstance().scroll(editor.getY() + 1);
             std::cout << editor.enter();
+            return true;
         }
-        else if (c == 8) {
+        bool backspace() override {
             auto length = editor.getY();
             h::Console::getInstance().move(editor.getX() - 2, editor.getY());
             auto show = editor.backspace();
-            if(!editor.getX())h::Console::getInstance().move(editor.getX(), editor.getY());
+            if (!editor.getX())h::Console::getInstance().move(editor.getX(), editor.getY());
             if (editor.getY() == length)
                 std::cout << show << "  ";
             else {
@@ -469,29 +532,36 @@ int main(int argc, char* argv[]) {
                 std::cout << show;
                 h::Console::getInstance().scroll(length, true);
             }
+            return true;
         }
-        else if (c != 224) {
+        bool insert(char c) override{
             std::cout << editor.insert(c);
             h::Console::getInstance().setScrollSize(editor.getMax() + 1, editor.getHeight());
+            return true;
         }
-        else {
-            switch (_getch()) {
-            case 0x48:
-                editor.up();
-                break;
-            case 0x50:
-                editor.down();
-                break;
-            case 0x4b:
-                editor.left();
-                break;
-            case 0x4d:
-                editor.right();
-                break;
-            }
+        void absolute()override {
+            h::Console::getInstance().move(editor.getX(), editor.getY());
         }
-        h::Console::getInstance().move(editor.getX(), editor.getY());
-    }
+        int up()override {
+            return editor.up();//同じ処理が多い
+        }
 
+        int down()override {
+            return editor.down();
+        }
+
+        int left()override {
+            return editor.left();
+        }
+
+        int right()override {
+            return editor.right();
+        }
+    };
+
+}
+int main(int argc, char* argv[]) {
+    h::Vim vim(argc, argv);
+    h::InputManager(&vim).input();//manager(h::Vim(...)) error
     return 0;
 }
