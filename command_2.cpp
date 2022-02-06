@@ -7,8 +7,10 @@
 #include <fstream>
 #include <filesystem>
 #include <vector>
+#include <unordered_map>
 #include <algorithm>
 namespace h {
+
     inline auto split(std::wstring str, const std::wstring cut) noexcept(false) {
         std::vector<std::wstring> data;
         for (auto pos = str.find(cut); pos != std::string::npos; pos = str.find(cut)) {
@@ -35,8 +37,8 @@ namespace h {
     inline auto checkOutOfRange(const T arr, const size_t index) {
         return 0 > index or arr.size() <= index;
     }
-    template <class T>
-    inline auto beBigger(T& value, T second) {
+    template <class T,class CT>
+    inline auto beBigger(T& value, CT second) {
         if (value < second) {
             value = second;
             return true;
@@ -88,98 +90,108 @@ namespace h {
         }
     };
 
-    class TextEditor {
+    //class TextEditor {
+    //protected:
+    //    std::vector<std::string> data;
+    //public:
+    //    TextEditor(std::string data) {
+    //        this->data = split(data, "\n");
+    //    }
+    //    auto& insert(int line, int column, char replace) {
+    //        if (checkOutOfRange(data, line) || checkOutOfRange(data[line], column)) {
+    //            return *this;
+    //        }
+    //        data[line].insert(column, 1, replace);
+    //        return *this;
+    //    }
+    //    auto& erase(int line, int column) {
+    //        if (checkOutOfRange(data, line) || checkOutOfRange(data[line], column)) {
+    //            return *this;
+    //        }
+    //        data[line].erase(column, 1);
+    //        return *this;
+    //    }
+    //    auto toString() {
+    //        std::stringstream ss;
+    //        std::copy(data.begin(), data.end(), std::ostream_iterator<std::string>(ss, "\n"));
+    //        return ss.str();
+    //    }
+    //};
+    class Point {
     protected:
-        std::vector<std::string> data;
+        int x, y;
     public:
-        TextEditor(std::string data) {
+        virtual ~Point(){}
+        virtual int up() = 0;
+        virtual int down() = 0;
+        virtual int left() = 0;
+        virtual int right() = 0;
+        virtual int getX() {
+            return x;
+        }
+        virtual int getY() {
+            return y;
+        }
+    };
+    class TextEditorPos:public Point{
+    private:
+        std::vector<std::string> data;
+        int  maxSize;
+    public:
+        TextEditorPos(std::string data) {
             this->data = split(data, "\n");
-        }
-        auto& insert(int line, int column, char replace) {
-            if (checkOutOfRange(data, line) || checkOutOfRange(data[line], column)) {
-                return *this;
+            if (data.empty()) {
+                this->data.push_back("");
             }
-            data[line].insert(column, 1, replace);
-            return *this;
-        }
-        auto& erase(int line, int column) {
-            if (checkOutOfRange(data, line) || checkOutOfRange(data[line], column)) {
-                return *this;
-            }
-            data[line].erase(column, 1);
-            return *this;
+            maxSize = std::max_element(this->data.begin(), this->data.end(), [](std::string first, std::string second) {return first.size() < second.size(); })->size();
         }
         auto toString() {
             std::stringstream ss;
-            std::copy(data.begin(), data.end(), std::ostream_iterator<std::string>(ss, "\n"));
+            std::copy(data.begin(), data.end(), std::ostream_iterator<std::string>(ss,"\n"));
             return ss.str();
         }
-    };
-    class TextEditorPos :private TextEditor {
-    private:
-        int x, y, maxSize;
-    public:
-        TextEditorPos(std::string data) :TextEditor(data) {
-            if (data.empty()) {
-                this->data.push_back("");
-            }//縦の長さが足りないとバグ
-            maxSize = std::max_element(this->data.begin(), this->data.end(), [](std::string first, std::string second) {return first.size() < second.size(); })->size();
-        }
-
-        auto toString() {
-            return TextEditor::toString();
-        }
-        auto& up() {
-            if (y <= 0)return *this;
+        int up() override{
+            if (y <= 0)return y;
             --y;
-            if (x&&data[y].size() <= x) {
-                x = data[y].size() - 1;
-            }
-            if (x>0&&IsDBCSLeadByte(data[y][x-1])) {
-                --x;
-            }
-            return *this;
-        }
-
-        auto& down() {
-            if (data.size() <= y + 1)return *this;
-            ++y;
-            if (x&&data[y].size() <= x) {
+            if (x && data[y].size() <= x) {
                 x = data[y].size() - 1;
             }
             if (x > 0 && IsDBCSLeadByte(data[y][x - 1])) {
                 --x;
             }
-            return *this;
+            return y;
         }
 
-        auto& left() {
+        int down()override {
+            if (data.size() <= y + 1)return y;
+            ++y;
+            if (x && data[y].size() <= x) {
+                x = data[y].size() - 1;
+            }
+            if (x > 0 && IsDBCSLeadByte(data[y][x - 1])) {
+                --x;
+            }
+            return y;
+        }
+
+        int left() override{
             if (x > 0) {
                 --x;
-                x -= (x > 0 && IsDBCSLeadByte(data[y][x - 1]));
-                return *this;
+                return x-= (x > 0 && IsDBCSLeadByte(data[y][x-1]));
             }
             up();
             x = data[y].size();
-            return *this;
+            return x;
         }
 
-        auto& right() {
-            //x += (x < data[y].size()) + IsDBCSLeadByte(data[y][x]);
+        int right() override{
             if (x < data[y].size()) {
                 x += IsDBCSLeadByte(data[y][x]);
-                ++x;
-                return *this;
+                return ++x;
             }
             down();
             x = 0;
-            return *this;
-        }
-        auto getX() {
             return x;
-        }
-        auto getY() {
-            return y;
         }
         auto getMax() {
             return maxSize;
@@ -191,14 +203,15 @@ namespace h {
             if (x >= data[y].size()) {
                 data[y] += replace;
             }
-            else
-                TextEditor::insert(y, x, replace);
+            else if (not checkOutOfRange(data, y) && not checkOutOfRange(data[y], x)) {
+                    data[y].insert(x, 1, replace);
+            }
             right();
-            if (maxSize < data[y].size())maxSize = data[y].size();
+            beBigger(maxSize, data[y].size());
             return data[y].substr(x - 1);
         }
         std::string backspace() {
-            if (x<=0) {
+            if (x <= 0) {
                 if (!y)return data[y];
                 auto show = data[y];
                 left();
@@ -211,8 +224,10 @@ namespace h {
                 data[y].erase(x, 2);
                 return data[y].substr(x);
             }
-            TextEditor::erase(y, x);
-            return data[y].substr(x-(x>0));
+            else if (not checkOutOfRange(data, y) && not checkOutOfRange(data[y], x)) {
+                data[y].erase(x, 1);
+            }
+            return data[y].substr(x - (x > 0));
         }
         std::string enter() {
             auto length = data[y].size() - x;
@@ -227,9 +242,6 @@ namespace h {
         }
     };
     class Console {
-    private:
-        HANDLE console;
-        short width, height;
     public:
         auto& setScrollSize(short width, short height) {
             if (beBigger(this->width, width) | beBigger(this->height, height)) {
@@ -237,12 +249,27 @@ namespace h {
             }
             return *this;
         }
-        Console(short width,short height) {
+
+    private:
+        HANDLE console;
+        short width, height;
+        Console() {
             CONSOLE_SCREEN_BUFFER_INFO info;
             console = GetStdHandle(STD_OUTPUT_HANDLE);
             GetConsoleScreenBufferInfo(console, &info);
-            beBigger(height, info.dwMaximumWindowSize.Y);
-            setScrollSize(width,height);
+            height = info.dwMaximumWindowSize.Y;
+        }
+        virtual ~Console() {
+
+        }
+    public:
+        Console(const Console&) = delete;
+        Console& operator=(const Console&) = delete;
+        Console& operator=(Console&&) = delete;
+        Console(Console&&) = delete;
+        static auto& getInstance() {
+            static Console console;
+            return console;
         }
         auto& move(short x, short y) {
             SetConsoleCursorPosition(console, { x,y });
@@ -262,7 +289,111 @@ namespace h {
             ScrollConsoleScreenBuffer(console, &range, nullptr, { 0,line }, &info);
             return *this;
         }
+        inline auto getCodePage() {
+            return GetConsoleOutputCP();
+        }
+        inline auto& setCodePage(UINT codePage) {
+            SetConsoleOutputCP(codePage);
+            SetConsoleCP(codePage);
+            return *this;
+        }
+        inline auto getTitle() {
+            WCHAR title[MAX_PATH];
+            auto bufSize = GetConsoleTitle(title, MAX_PATH);
+            return std::wstring(title, title + bufSize);
+        }
+        inline auto& setTitle(std::wstring str) {
+            SetConsoleTitle(str.c_str());
+            return *this;
+        }
     };
+    class InputCmd {
+    private:
+        int x, y;
+        std::string cmd,def;
+    public:
+        InputCmd(std::string def):def(def) {
+
+        }
+        int left(){
+            if (x > 0) {
+                --x;
+                x -= (x > 0 && IsDBCSLeadByte(cmd[x - 1]));
+            }
+            return x;
+        }
+        int right()  {
+            if (x <cmd.size()) {
+                x += IsDBCSLeadByte(cmd[x]);
+                ++x;
+            }
+            return x;
+        }
+        auto &setDefault(std::string def){
+            this->def = def;
+            return *this;
+        }
+        auto toString() {
+            return def + ">" + cmd;
+        }
+        auto input(char c) {
+            cmd.insert(x,1,c);
+            return toString();
+        }
+        auto backspace() {
+            left();
+            if (IsDBCSLeadByte(cmd[x])) {
+                cmd.erase(x, 2);
+            }
+            else{
+                cmd.erase(x, 1);
+            }
+            return toString();
+        }
+        auto& exe() {
+
+            return *this;
+        }
+    };
+    //class InputManagerIntarface {
+    //public:
+    //    virtual void enter() = 0;
+    //    virtual void backspace() = 0;
+    //    virtual void move() = 0;
+    //    virtual void other() = 0;
+    //    virtual void esc() = 0;
+    //};
+    //class InputManager {
+    //private: 
+    //    InputManagerIntarface *p;
+    //    //std::unordered_map<int, void(*)()> func;
+    //public:
+    //    InputManager(InputManagerIntarface *p) {
+    //        this->p = p;
+    //    }
+    //    void input() {
+    //        auto c = _getch();
+    //        if (p == nullptr)return;
+    //        switch (c) {
+    //        case 0x1b:
+    //            p->esc();
+    //            return;
+    //            break;
+    //        case 0x0d:
+    //            p->enter();
+    //            return;
+    //            break;
+    //        case 8:
+    //            p->backspace();
+    //            return;
+    //            break;
+    //        }
+    //        if (c != 244) {
+    //            p->other();
+    //            return;
+    //        }
+    //    }
+    //};
 }
 int main(int argc, char* argv[]) {
     system("cls");
@@ -270,29 +401,48 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         file.setName(argv[1]);
     }
-    if (argc > 2) {
-        auto codePage = std::stoi(argv[2]);
-        SetConsoleOutputCP(codePage);
-        SetConsoleCP(codePage);
-    }
     h::TextEditorPos editor(file.read().getContent());
-    h::Console console(editor.getMax(), editor.getHeight()+1);
-    std::cout <<editor.toString();
-    console.move(0, 0);
+    h::Console::getInstance().setScrollSize(editor.getMax(), editor.getHeight() + 1);
+    if (argc > 2) {
+        h::Console::getInstance().setCodePage(std::stoi(argv[2]));
+    }
+    //std::string title;
+    //std::cin >> title;
+    //h::Console::getInstance().setTitle(h::stringToWstring(title));
+    //std::wcout << h::Console::getInstance().getTitle();
+    std::cout << editor.toString();
+    h::Console::getInstance().move(0, 0);
     while (true) {
         auto c = _getch();
         if (c == 0x1b) {
             switch (_getch()) {
             case 's':
                 if (file.getName().empty()) {
-                    console.move(0, editor.getHeight());
-                    std::cout << "filename:";
-                    file.setName(*std::istream_iterator<std::string>(std::cin));
+                    h::InputCmd cmd("filename");
+                    h::Console::getInstance().setTitle(h::stringToWstring(cmd.toString()));
+                    while (true) {
+                        auto c = _getch();
+                        if (c == 0x1b)break;
+                        if (0x0d)cmd.exe();
+                        if (c == 8)h::Console::getInstance().setTitle(h::stringToWstring(cmd.backspace()));
+                        if (c != 224)h::Console::getInstance().setTitle(h::stringToWstring(cmd.input(c)));
+                        else {
+                            switch (_getch()) {
+                            case 0x4b:
+                                cmd.left();
+                                break;
+                            case 0x4d:
+                                cmd.right();
+                                break;
+                            }
+                        }
+                    }
+                    //file.setName(*std::istream_iterator<std::string>(std::cin));
                 }
                 file.write(editor.toString(), true);
                 break;
             case 'c'://cmd
-                console.move(0, editor.getHeight());
+                h::Console::getInstance().move(0, editor.getHeight());
                 *std::istream_iterator<std::string>(std::cin);
                 break;
             case 'e':
@@ -303,26 +453,26 @@ int main(int argc, char* argv[]) {
             continue;
         }
         else if (c == 0x0d) {
-            console.setScrollSize(editor.getMax(), editor.getHeight());
-            console.scroll(editor.getY() + 1);
+            h::Console::getInstance().setScrollSize(editor.getMax(), editor.getHeight());
+            h::Console::getInstance().scroll(editor.getY() + 1);
             std::cout << editor.enter();
-
         }
         else if (c == 8) {
             auto length = editor.getY();
-            console.move(editor.getX() - 2, editor.getY());
+            h::Console::getInstance().move(editor.getX() - 2, editor.getY());
             auto show = editor.backspace();
+            if(!editor.getX())h::Console::getInstance().move(editor.getX(), editor.getY());
             if (editor.getY() == length)
                 std::cout << show << "  ";
             else {
-                console.move(editor.getX(), editor.getY());
+                h::Console::getInstance().move(editor.getX(), editor.getY());
                 std::cout << show;
-                console.scroll(length, true);
+                h::Console::getInstance().scroll(length, true);
             }
         }
         else if (c != 224) {
             std::cout << editor.insert(c);
-            console.setScrollSize(editor.getMax() + 1, editor.getHeight());
+            h::Console::getInstance().setScrollSize(editor.getMax() + 1, editor.getHeight());
         }
         else {
             switch (_getch()) {
@@ -340,7 +490,7 @@ int main(int argc, char* argv[]) {
                 break;
             }
         }
-        console.move(editor.getX(), editor.getY());
+        h::Console::getInstance().move(editor.getX(), editor.getY());
     }
 
     return 0;
