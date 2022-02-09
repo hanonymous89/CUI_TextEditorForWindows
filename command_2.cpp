@@ -11,10 +11,29 @@
 #include <algorithm>
 #include <functional>
 namespace h {
-
+    template <class T>
+    inline auto find(std::string str, const std::string cut,T func) {
+        for (auto pos = str.find(cut); pos != std::string::npos; pos = str.find(cut)) {
+            func(str.substr(0, pos));
+            str = str.substr(pos + cut.size());
+        }
+        return str;
+    }
+    inline auto findAll(std::string str, const std::string cut) {
+        std::vector<int> data;
+        int pos=0;
+        find(str, cut, [&](std::string str) {
+            //pos += str.size();//findAll(str,cut).foreach(item).substr(item,cut.size)=cut;
+            //data.push_back(pos);
+            //pos += cut.size();
+            pos += str.size()+ cut.size();
+            data.push_back(pos);
+            });
+        return data;
+    }
     inline auto split(std::wstring str, const std::wstring cut) noexcept(false) {
         std::vector<std::wstring> data;
-        for (auto pos = str.find(cut); pos != std::string::npos; pos = str.find(cut)) {
+        for (auto pos = str.find(cut); pos != std::string::npos; pos = str.find(cut)) {//findAllと組み合わせたり逆に組合されたりでも遅い　
             data.push_back(str.substr(0, pos));
             str = str.substr(pos + cut.size());
         }
@@ -23,10 +42,13 @@ namespace h {
     }
     inline auto split(std::string str, const std::string cut) noexcept(false) {
         std::vector<std::string> data;
-        for (auto pos = str.find(cut); pos != std::string::npos; pos = str.find(cut)) {
-            data.push_back(str.substr(0, pos));
-            str = str.substr(pos + cut.size());
-        }
+        str=find(str, cut, [&](std::string str) {
+            data.push_back(str);
+            });
+        //for (auto pos = str.find(cut); pos != std::string::npos; pos = str.find(cut)) {
+        //    data.push_back(str.substr(0, pos));
+        //    str = str.substr(pos + cut.size());
+        //}
         if (!str.empty())data.push_back(str);
         return data;
     }
@@ -90,40 +112,11 @@ namespace h {
             return *this;
         }
     };
-
-    //class TextEditor {
-    //protected:
-    //    std::vector<std::string> data;
-    //public:
-    //    TextEditor(std::string data) {
-    //        this->data = split(data, "\n");
-    //    }
-    //    auto& insert(int line, int column, char replace) {
-    //        if (checkOutOfRange(data, line) || checkOutOfRange(data[line], column)) {
-    //            return *this;
-    //        }
-    //        data[line].insert(column, 1, replace);
-    //        return *this;
-    //    }
-    //    auto& erase(int line, int column) {
-    //        if (checkOutOfRange(data, line) || checkOutOfRange(data[line], column)) {
-    //            return *this;
-    //        }
-    //        data[line].erase(column, 1);
-    //        return *this;
-    //    }
-    //    auto toString() {
-    //        std::stringstream ss;
-    //        std::copy(data.begin(), data.end(), std::ostream_iterator<std::string>(ss, "\n"));
-    //        return ss.str();
-    //    }
-    //};
-
     class Point {
     protected:
         int x=0, y=0;
     public:
-        virtual ~Point(){}
+        virtual ~Point(){}//純仮想関数じゃなくてもいいかも
         virtual int up() = 0;
         virtual int down() = 0;
         virtual int left() = 0;
@@ -141,7 +134,7 @@ namespace h {
         virtual bool backspace() = 0;
         virtual bool insert(char) = 0;
         virtual bool esc() = 0;
-        virtual void absolute() = 0;
+        virtual void absolute() {};
     };
     class TextEditorPos:public Point{
     private:
@@ -159,6 +152,18 @@ namespace h {
             std::stringstream ss;
             std::copy(data.begin(), data.end(), std::ostream_iterator<std::string>(ss,"\n"));
             return ss.str();
+        }
+        auto findAll(std::string find) {
+            std::vector<std::pair<int, std::vector<int> > > pos;
+            for (int lineCount=0; auto & line : data) {
+                pos.emplace_back(lineCount,h::findAll(line, find));
+                ++lineCount;
+            }
+            return pos;
+        }
+        auto warp(int x,int y){
+            this->x = x;
+            this->y = y;
         }
         int up() override{
             if (y <= 0)return y;
@@ -230,12 +235,12 @@ namespace h {
                 return show;
             }
             left();
-            if (IsDBCSLeadByte(data[y][x])) {
+            if (IsDBCSLeadByte(data[y][x])) {//example1
                 data[y].erase(x, 2);
                 return data[y].substr(x);
             }
-            else if (not checkOutOfRange(data, y) && not checkOutOfRange(data[y], x)) {
-                data[y].erase(x, 1);
+            else if (not checkOutOfRange(data, y) && not checkOutOfRange(data[y], x)) {//example2
+                data[y].erase(x, 1);//erase(example1+example2)
             }
             return data[y].substr(x - (x > 0));
         }
@@ -254,7 +259,7 @@ namespace h {
     class Console {
     public:
         auto& setScrollSize(short width, short height) {
-            if (beBigger(this->width, width) | beBigger(this->height, height)) {
+            if (beBigger(this->width, width) | beBigger(this->height, def+height)) {
                 SetConsoleScreenBufferSize(console, { this->width,this->height });
             }
             return *this;
@@ -262,11 +267,12 @@ namespace h {
 
     private:
         HANDLE console;
-        short width, height;
+        short width, height,def;
         Console() {
             CONSOLE_SCREEN_BUFFER_INFO info;
             console = GetStdHandle(STD_OUTPUT_HANDLE);
             GetConsoleScreenBufferInfo(console, &info);
+            def = info.dwCursorPosition.Y;
             height = info.dwMaximumWindowSize.Y;
         }
         virtual ~Console() {
@@ -282,11 +288,12 @@ namespace h {
             return console;
         }
         auto& move(short x, short y) {
-            SetConsoleCursorPosition(console, { x,y });
+            SetConsoleCursorPosition(console, { x,short(def+y)});
             return *this;
         }
 
         auto& scroll(short line, bool up = false) {
+            line += def;
             CHAR_INFO info;
             SMALL_RECT range;
             range.Left = 0;
@@ -319,11 +326,12 @@ namespace h {
     };
     class InputManager {
     private:
+        //std::unique_ptr<InputManagerIntarface> p;
         InputManagerIntarface* p;
-        //std::unordered_map<int, void(*)()> func;
     public:
-        InputManager(InputManagerIntarface* p) {
-            this->p = p;
+        //InputManager(decltype(p) ::element_type* p) {
+        InputManager(InputManagerIntarface *p):p(p){
+            //this->p.reset(p);
         }
         void input(std::function<void()> absolute/*=[] {}*/) {
             if (p == nullptr)return;
@@ -369,7 +377,7 @@ namespace h {
                 }
                 absolute();
             }
-        }
+        }//bad!!!!変数使ったらいいかもしれないけどそこまでのことじゃない
         void input() {
             if (p == nullptr)return;
             bool loop = true;
@@ -416,11 +424,11 @@ namespace h {
             }
         }
     };
-    class InputCmd :public InputManagerIntarface{//インターフェイスにしてもいいかも setExe(key,funcValue())
-    private:
+    class Cmd :public InputManagerIntarface{
+    protected:
         std::string cmd,def;
     public:
-        InputCmd(std::string def):def(def) {
+        Cmd(std::string def):def(def) {
 
         }
         auto getCmd() {
@@ -441,7 +449,7 @@ namespace h {
         }
         int right()  {
             if (x <cmd.size()) {
-                x += IsDBCSLeadByte(cmd[x]);
+                //x += IsDBCSLeadByte(cmd[x]);
                 ++x;
             }
             return x;
@@ -458,18 +466,12 @@ namespace h {
         }
         bool backspace() override{
             left();
-            if (IsDBCSLeadByte(cmd[x])) {
-                cmd.erase(x, 2);
-            }
-            else{
-                cmd.erase(x, 1);
-            }
+            cmd.erase(x, 1+IsDBCSLeadByte(cmd[x]));
             return true;
          }
-         bool enter() override{
-             return cmd.empty();
+         virtual bool enter() override{
+             return true;
          }
-         void absolute()override {}
          int up() { return 0; }
          int down() { return 0; }
          bool esc()override{
@@ -477,13 +479,92 @@ namespace h {
          }
 
     };
+    class InputCmd :public Cmd {
+    public:
+        InputCmd(std::string def) :Cmd(def) {
+            
+        }
+        bool enter()override {
+            return cmd.empty();
+        }
+    };
+    class FindEditor :public InputManagerIntarface {
+    private:
+        std::vector<std::pair<int, std::vector< int> > > data;
+    public:
+        void absolute() override {
+            h::Console::getInstance().move( data[y].second[x], data[y].first);
+        }
+        FindEditor(TextEditorPos &editor, std::string find) {
+            data = editor.findAll(find);
+            absolute();
+        }
+        int getX()override {
+            return data[y].second[x];
+        }
+        int getY()override {
+            return data[y].first;
+        }
+        int right()override {
+            if (x < data[y].second.size()) {
+                ++x;
+            }
+            else {
+                x = 0;
+                y+= y+1 < data.size();
+            }
+            return x;
+        }
+        int left() {
+            if (x> 0) {
+                --x;
+            }
+            else {
+                x = 0;
+                y-=y<0;
+            }
+            return x;
+        }
+        int up() {
+            left();
+            return y;
+        }
+        int down() {
+            right();
+            return y;
+        }
+
+        bool esc()override {
+            return false;
+        }//getnowでfalseになったときにwarpする　　
+        bool insert(char c)override {
+            return false;
+        }
+        bool enter()override {
+            return false;//editor.enter
+        }
+        bool backspace()override {
+            return false;
+        }
+
+    };
     class Vim:public InputManagerIntarface {
     private:
         File file;
         TextEditorPos editor;
+        auto getTitleLine(std::string def) {
+            InputCmd cmd(def);
+            h::Console::getInstance().setTitle(h::stringToWstring(cmd.toString()));
+            h::InputManager(&cmd).input([&] {
+                h::Console::getInstance().setTitle(h::stringToWstring(cmd.toString()));
+                });
+            return cmd.getCmd();
+        }
     public:
+        ~Vim() {
+            h::Console::getInstance().move(0,editor.getHeight());
+        }
         Vim(int argc,char *argv[]):file(argc>1?argv[1]:""), editor(file.read().getContent()) {
-            system("cls");
             h::Console::getInstance().setScrollSize(editor.getMax(), editor.getHeight() + 1);
             if (argc > 2) {
                 h::Console::getInstance().setCodePage(std::stoi(argv[2]));
@@ -495,20 +576,24 @@ namespace h {
             switch (_getch()) {
             case 's':
                 if (file.getName().empty()) {
-                    h::InputCmd cmd("filename");
-                    h::Console::getInstance().setTitle(h::stringToWstring(cmd.toString()));
-                    h::InputManager(&cmd).input([&] {
-                        h::Console::getInstance().setTitle(h::stringToWstring(cmd.toString()));
-                        });
-                    file.setName(cmd.getCmd());
+                    file.setName(getTitleLine("fileName"));
                 }
                 file.write(editor.toString(), true);
                 break;
-            case 'c'://cmd
-                h::Console::getInstance().move(0, editor.getHeight());
-                *std::istream_iterator<std::string>(std::cin);
+            case 'f':
+            {
+                FindEditor findEditor(editor,getTitleLine("find"));
+                InputManager(&findEditor).input();
+                editor.warp(findEditor.getX(),findEditor.getY());
+                
+            }
                 break;
-            case 'e':
+            case 'r'://read
+            {
+
+            }
+                break;
+            case 'q':
                 return false;
                 break;
             }
@@ -562,6 +647,6 @@ namespace h {
 }
 int main(int argc, char* argv[]) {
     h::Vim vim(argc, argv);
-    h::InputManager(&vim).input();//manager(h::Vim(...)) error
+    h::InputManager(&vim).input();//manager(&h::Vim(...)) error
     return 0;
 }
