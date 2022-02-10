@@ -223,8 +223,8 @@ namespace h {
             }
             ++x;
             beBigger(maxSize, data[y].size());
-            return data[y];
-            //return data[y].substr(x-1);
+            //return data[y];
+            return data[y].substr(x-1);
         }
         std::string backspace() {
             if (x <= 0) {
@@ -521,6 +521,7 @@ namespace h {
     private:
         File file;
         TextEditorPos editor;
+        int multiCount;
         auto getTitleLine(std::string def) {
             InputCmd cmd(def);
             h::Console::getInstance().setTitle(h::stringToWstring(cmd.toString()));
@@ -600,9 +601,17 @@ namespace h {
             return true;
         }
         bool insert(char c) override{
-            h::Console::getInstance().move(0, editor.getY());////////////////////////
+            //h::Console::getInstance().move(0, editor.getY());////////////////////////
+            if (c == 0 || c == 41)return true;
+            if (x > 1 && IsDBCSLeadByte(editor.get()[editor.getY()][editor.getX() - 2]))multiCount = 0;
+            else if (IsDBCSLeadByte(c)) {
+                multiCount = 1;
+            }
+            else if (multiCount == 1)++multiCount;
+            else if (multiCount >= 2)multiCount = 0;
+            h::Console::getInstance().move(editor.getX()-(0<multiCount), editor.getY());
             std::cout << editor.insert(c);
-            h::Console::getInstance().setScrollSize(editor.getMax() + 1, editor.getHeight());
+            h::Console::getInstance().setScrollSize(editor.getMax()+1, editor.getHeight());
             return true;
         }
         void absolute()override {
@@ -629,5 +638,8 @@ namespace h {
 int main(int argc, char* argv[]) {
     h::Vim vim(argc, argv);
     h::InputManager(&vim).input();//manager(&h::Vim(...)) error
+    //while (true) {
+    //    std::cout <<(char) _getch();
+    //}
     return 0;
 }
