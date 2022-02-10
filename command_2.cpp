@@ -279,6 +279,10 @@ namespace h {
 
         }
     public:
+        auto &addDefLine(decltype(def) def) {
+            this->def += def;
+            return *this;
+        }
         Console(const Console&) = delete;
         Console& operator=(const Console&) = delete;
         Console& operator=(Console&&) = delete;
@@ -328,12 +332,7 @@ namespace h {
     private:
         //std::unique_ptr<InputManagerIntarface> p;
         InputManagerIntarface* p;
-    public:
-        //InputManager(decltype(p) ::element_type* p) {
-        InputManager(InputManagerIntarface *p):p(p){
-            //this->p.reset(p);
-        }
-        void input(std::function<void()> absolute/*=[] {}*/) {
+        void inputBase(std::function<void()> absolute/*=[] {}*/) {
             if (p == nullptr)return;
             bool loop = true;
             while (loop) {
@@ -377,51 +376,17 @@ namespace h {
                 }
                 absolute();
             }
-        }//bad!!!!変数使ったらいいかもしれないけどそこまでのことじゃない
+        }
+    public:
+        //InputManager(decltype(p) ::element_type* p) {
+        InputManager(InputManagerIntarface* p) :p(p) {
+            //this->p.reset(p);
+        }
+        void input(std::function<void()> absolute) {
+            inputBase(absolute);
+        }
         void input() {
-            if (p == nullptr)return;
-            bool loop = true;
-            while (loop) {
-                bool hit = true;
-                auto c = _getch();
-                switch (c) {
-                case 0x1b:
-                    loop = p->esc();
-                    break;
-                case 0x0d:
-                    loop = p->enter();
-                    break;
-                case 8:
-                    loop = p->backspace();
-                    break;
-                default:
-                    hit = false;
-                }
-                if (hit) {
-                    p->absolute();
-                    continue;
-                }
-                if (!hit && c != 224) {
-                    loop = p->insert(c);
-                    p->absolute();
-                    continue;
-                }
-                switch (_getch()) {
-                case 0x48:
-                    p->up();
-                    break;
-                case 0x50:
-                    p->down();
-                    break;
-                case 0x4b:
-                    p->left();
-                    break;
-                case 0x4d:
-                    p->right();
-                    break;
-                }
-                p->absolute();
-            }
+            inputBase(std::bind(&InputManagerIntarface::absolute, p));
         }
     };
     class Cmd :public InputManagerIntarface{
@@ -493,6 +458,7 @@ namespace h {
         std::vector<std::pair<int, std::vector< int> > > data;
     public:
         void absolute() override {
+            if (!x || !y)return;
             h::Console::getInstance().move( data[y].second[x], data[y].first);
         }
         FindEditor(TextEditorPos &editor, std::string find) {
@@ -500,9 +466,11 @@ namespace h {
             absolute();
         }
         int getX()override {
+            if (!x || !y)return 0;
             return data[y].second[x];
         }
         int getY()override {
+            if(!y)return 0;
             return data[y].first;
         }
         int right()override {
@@ -580,17 +548,28 @@ namespace h {
                 }
                 file.write(editor.toString(), true);
                 break;
+            case 'm':
+                file.setName(getTitleLine("fileName"));
+                break;
             case 'f':
             {
-                FindEditor findEditor(editor,getTitleLine("find"));
+                FindEditor findEditor(editor, getTitleLine("find"));
                 InputManager(&findEditor).input();
                 editor.warp(findEditor.getX(),findEditor.getY());
+                
                 
             }
                 break;
             case 'r'://read
             {
-
+                //codepage じっそうしろ
+                Console::getInstance().addDefLine(editor.getHeight());
+                Console::getInstance().move(0, 0);
+                auto cmd = split(getTitleLine("read")," ");
+                editor = TextEditorPos(file.setName(cmd[0]).read().getContent());
+                if (cmd.size() >= 2)Console::getInstance().setCodePage(std::stoi(cmd[1]));
+                std::cout << editor.toString();
+                Console::getInstance().move(0, 0);
             }
                 break;
             case 'q':
