@@ -602,7 +602,7 @@ namespace h {
         }
         bool insert(char c) override{
             //h::Console::getInstance().move(0, editor.getY());////////////////////////
-            if (c == 0 || c == 41)return true;
+            if (c == 0 )return true;
             if (x > 1 && IsDBCSLeadByte(editor.get()[editor.getY()][editor.getX() - 2]))multiCount = 0;
             else if (IsDBCSLeadByte(c)) {
                 multiCount = 1;
