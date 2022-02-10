@@ -459,7 +459,7 @@ namespace h {
         std::vector<std::pair<int, std::vector< int> > > data;
     public:
         void absolute() override {
-            if (!x || !y)return;
+            if (data.empty()|| data[y].second.empty())return;
             h::Console::getInstance().move( data[y].second[x], data[y].first);
         }
         FindEditor(TextEditorPos &editor, std::string find) {
@@ -467,11 +467,11 @@ namespace h {
             absolute();
         }
         int getX()override {
-            if (!x || !y)return 0;
+            if (data.empty() || data[y].second.empty())return 0;
             return data[y].second[x];
         }
         int getY()override {
-            if(!y)return 0;
+            if(data.empty())return 0;
             return data[y].first;
         }
         int right()override {
@@ -602,7 +602,7 @@ namespace h {
         }
         bool insert(char c) override{
             //h::Console::getInstance().move(0, editor.getY());////////////////////////
-            if (c == 0 )return true;
+            if (c == 0)return true;
             if (x > 1 && IsDBCSLeadByte(editor.get()[editor.getY()][editor.getX() - 2]))multiCount = 0;
             else if (IsDBCSLeadByte(c)) {
                 multiCount = 1;
