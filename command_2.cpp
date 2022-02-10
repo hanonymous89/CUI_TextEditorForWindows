@@ -221,9 +221,10 @@ namespace h {
             else if (not checkOutOfRange(data, y) && not checkOutOfRange(data[y], x)) {
                     data[y].insert(x, 1, replace);
             }
-            right();
+            ++x;
             beBigger(maxSize, data[y].size());
-            return data[y].substr(x - 1);
+            return data[y];
+            //return data[y].substr(x-1);
         }
         std::string backspace() {
             if (x <= 0) {
@@ -599,6 +600,7 @@ namespace h {
             return true;
         }
         bool insert(char c) override{
+            h::Console::getInstance().move(0, editor.getY());////////////////////////
             std::cout << editor.insert(c);
             h::Console::getInstance().setScrollSize(editor.getMax() + 1, editor.getHeight());
             return true;
