@@ -24,6 +24,8 @@ s->save(保存)
 >
 m->modification(変更)  
 保存先ファイル名を変更します。  
+>fileName\>fineName
+>
 f->find(検索)  
 現在の状態から文字列を検索します。  
 >find\>findWord
