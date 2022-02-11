@@ -214,7 +214,7 @@ namespace h {
         auto getHeight() {
             return data.size();
         }
-        std::string insert(char replace) {
+        bool insert(char replace) {
             if (x >= data[y].size()) {
                 data[y] += replace;
             }
@@ -223,27 +223,29 @@ namespace h {
             }
             ++x;
             beBigger(maxSize, data[y].size());
+            return x > 1 && IsDBCSLeadByte(data[y][x - 2]);
             //return data[y];
-            return data[y].substr(x-1);
+            //return data[y].substr(x-1);
         }
-        std::string backspace() {
+        int backspace() {
             if (x <= 0) {
-                if (!y)return data[y];
+                if (!y)return 0;
                 auto show = data[y];
                 left();
                 data[y] += show;
                 data.erase(std::next(data.begin(), y + 1));
-                return show;
+                return -1;
             }
             left();
             if (IsDBCSLeadByte(data[y][x])) {//example1
                 data[y].erase(x, 2);
-                return data[y].substr(x);
+                return 2;
             }
             else if (not checkOutOfRange(data, y) && not checkOutOfRange(data[y], x)) {//example2
                 data[y].erase(x, 1);//erase(example1+example2)
+                return 1;
             }
-            return data[y].substr(x - (x > 0));
+            return 0;
         }
         std::string enter() {
             auto length = data[y].size() - x;
@@ -309,6 +311,50 @@ namespace h {
             info.Char.AsciiChar = ' ';
             line += !up;
             ScrollConsoleScreenBuffer(console, &range, nullptr, { 0,line }, &info);
+            return *this;
+        }
+        auto& around(short x,short y,bool left=true, short width = 1) {
+            y += def;
+            CHAR_INFO info;
+            SMALL_RECT range;
+            range.Left = x;
+            range.Right = this->width;
+            range.Top = y;
+            range.Bottom =y+1;
+            info.Attributes = 0;
+            info.Char.AsciiChar = ' ';
+            x +=width - (width*2) * (left);
+            ScrollConsoleScreenBuffer(console, &range, nullptr, { x,y}, &info);
+            return *this;
+        }
+        auto& appendAboveCopyLine(short x,short y) {
+            y += def;
+            CHAR_INFO info;
+            SMALL_RECT range,clip;
+            range.Left = 0;
+            range.Right = this->width;
+            range.Top = y;
+            range.Bottom = y + 1;
+            info.Attributes = 0;
+            info.Char.AsciiChar = ' ';
+            clip.Left = x;
+            clip.Right = this->width;
+            clip.Bottom = y;
+            clip.Top = y;
+            ScrollConsoleScreenBuffer(console, &range, &clip, { x,--y }, &info);
+            return *this;
+        }
+        auto& appendUnderCopyLine(short x, short y) {
+            y += def;
+            CHAR_INFO info;
+            SMALL_RECT range;
+            range.Left = x;
+            range.Right = this->width;
+            range.Top = y;
+            range.Bottom = y;
+            info.Attributes = 0;
+            info.Char.AsciiChar = ' ';
+            ScrollConsoleScreenBuffer(console, &range, nullptr, { 0,++y }, &info);
             return *this;
         }
         inline auto getCodePage() {
@@ -521,7 +567,6 @@ namespace h {
     private:
         File file;
         TextEditorPos editor;
-        int multiCount;
         auto getTitleLine(std::string def) {
             InputCmd cmd(def);
             h::Console::getInstance().setTitle(h::stringToWstring(cmd.toString()));
@@ -581,37 +626,33 @@ namespace h {
             return true;
         }
         bool enter() override{
-            h::Console::getInstance().setScrollSize(editor.getMax(), editor.getHeight());
-            h::Console::getInstance().scroll(editor.getY() + 1);
-            std::cout << editor.enter();
+            h::Console::getInstance()
+                .setScrollSize(editor.getMax(), editor.getHeight())
+                .scroll(editor.getY() + 1)
+                .appendUnderCopyLine(editor.getX(), editor.getY());
+            editor.enter();
             return true;
         }
         bool backspace() override {
-            auto length = editor.getY();
-            h::Console::getInstance().move(editor.getX() - 2, editor.getY());
-            auto show = editor.backspace();
-            if (!editor.getX())h::Console::getInstance().move(editor.getX(), editor.getY());
-            if (editor.getY() == length)
-                std::cout << show << "  ";
-            else {
-                h::Console::getInstance().move(editor.getX(), editor.getY());
-                std::cout << show;
-                h::Console::getInstance().scroll(length, true);
+            auto erased = editor.backspace();
+            if (erased == -1) {
+                
+                h::Console::getInstance()
+                    .appendAboveCopyLine(editor.getX(), editor.getY())
+                    .scroll(editor.getY() + 1, true);
+                return true;
             }
+            if (!erased)return true;
+            h::Console::getInstance().around(editor.getX() +erased , editor.getY(), true, erased);//erased,erased
             return true;
         }
         bool insert(char c) override{
-            //h::Console::getInstance().move(0, editor.getY());////////////////////////
             if (c == 0)return true;
-            if (x > 1 && IsDBCSLeadByte(editor.get()[editor.getY()][editor.getX() - 2]))multiCount = 0;
-            else if (IsDBCSLeadByte(c)) {
-                multiCount = 1;
-            }
-            else if (multiCount == 1)++multiCount;
-            else if (multiCount >= 2)multiCount = 0;
-            h::Console::getInstance().move(editor.getX()-(0<multiCount), editor.getY());
-            std::cout << editor.insert(c);
-            h::Console::getInstance().setScrollSize(editor.getMax()+1, editor.getHeight());
+            h::Console::getInstance().around(editor.getX(),editor.getY(),false);
+            auto multi = editor.insert(c);
+            std::cout <<c;
+            if(multi) h::Console::getInstance().around(editor.getX()-1, editor.getY());
+            h::Console::getInstance().setScrollSize(editor.getMax() + 1, editor.getHeight());
             return true;
         }
         void absolute()override {
@@ -626,6 +667,7 @@ namespace h {
         }
 
         int left()override {
+            
             return editor.left();
         }
 
