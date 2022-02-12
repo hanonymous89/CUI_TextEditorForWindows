@@ -262,7 +262,7 @@ namespace h {
     class Console {
     public:
         auto& setScrollSize(short width, short height) {
-            if (beBigger(this->width, width) | beBigger(this->height, def+height)) {
+            if (beBigger(this->width, width) | beBigger(this->height, def + height)) {
                 SetConsoleScreenBufferSize(console, { this->width,this->height });
             }
             return *this;
@@ -270,11 +270,13 @@ namespace h {
 
     private:
         HANDLE console;
-        short width, height,def;
+        WORD defColor;
+        short width, height, def;
         Console() {
             CONSOLE_SCREEN_BUFFER_INFO info;
             console = GetStdHandle(STD_OUTPUT_HANDLE);
             GetConsoleScreenBufferInfo(console, &info);
+            defColor = info.wAttributes;
             def = info.dwCursorPosition.Y;
             height = info.dwMaximumWindowSize.Y;
         }
@@ -282,7 +284,7 @@ namespace h {
 
         }
     public:
-        auto &addDefLine(decltype(def) def) {
+        auto& addDefLine(decltype(def) def) {
             this->def += def;
             return *this;
         }
@@ -295,7 +297,7 @@ namespace h {
             return console;
         }
         auto& move(short x, short y) {
-            SetConsoleCursorPosition(console, { x,short(def+y)});
+            SetConsoleCursorPosition(console, { x,short(def + y) });
             return *this;
         }
 
@@ -313,24 +315,24 @@ namespace h {
             ScrollConsoleScreenBuffer(console, &range, nullptr, { 0,line }, &info);
             return *this;
         }
-        auto& around(short x,short y,bool left=true, short width = 1) {
+        auto& around(short x, short y, bool left = true, short width = 1) {
             y += def;
             CHAR_INFO info;
             SMALL_RECT range;
             range.Left = x;
             range.Right = this->width;
             range.Top = y;
-            range.Bottom =y+1;
+            range.Bottom = y + 1;
             info.Attributes = 0;
             info.Char.AsciiChar = ' ';
-            x +=width - (width*2) * (left);
-            ScrollConsoleScreenBuffer(console, &range, nullptr, { x,y}, &info);
+            x += width - (width * 2) * (left);
+            ScrollConsoleScreenBuffer(console, &range, nullptr, { x,y }, &info);
             return *this;
         }
-        auto& appendAboveCopyLine(short x,short y) {
+        auto& appendAboveCopyLine(short x, short y) {
             y += def;
             CHAR_INFO info;
-            SMALL_RECT range,clip;
+            SMALL_RECT range, clip;
             range.Left = 0;
             range.Right = this->width;
             range.Top = y;
@@ -372,6 +374,10 @@ namespace h {
         }
         inline auto& setTitle(std::wstring str) {
             SetConsoleTitle(str.c_str());
+            return *this;
+        }
+        inline auto& color(DWORD length,short x,short y,bool def=true) {
+            FillConsoleOutputAttribute(console, def?defColor : ~defColor , length, { x,y += this->def }, &length);
             return *this;
         }
     };
@@ -454,20 +460,17 @@ namespace h {
         int left(){
             if (x >0) {
                 --x;
-                
-                //x -= (x > 0 && IsDBCSLeadByte(cmd[x - 1]));
             }
             return x;
         }
         int right()  {
             if (x <cmd.size()) {
-                //x += IsDBCSLeadByte(cmd[x]);
                 ++x;
             }
             return x;
         }
         auto &setDefault(std::string def){
-            this->def = def;//考える必要あり
+            this->def = def;
             return *this;
         }
         
@@ -503,13 +506,27 @@ namespace h {
     class FindEditor :public InputManagerIntarface {
     private:
         std::vector<std::pair<int, std::vector< int> > > data;
+        DWORD size;
+        auto& paint(bool def=true) {
+            for (auto [line, founds] : data) {
+                for (auto found : founds) {
+                    Console::getInstance().color(size, found - size, line,def);
+                }
+            }
+            return *this;
+        }
     public:
         void absolute() override {
             if (data.empty()|| data[y].second.empty())return;
             h::Console::getInstance().move( data[y].second[x], data[y].first);
         }
+        ~FindEditor() {
+            paint();
+        }
         FindEditor(TextEditorPos &editor, std::string find) {
+            size = find.size();
             data = editor.findAll(find);
+            paint(false);
             absolute();
         }
         int getX()override {
@@ -551,14 +568,14 @@ namespace h {
 
         bool esc()override {
             return false;
-        }//getnowでfalseになったときにwarpする　　
+        }
         bool insert(char c)override {
             return false;
         }
-        bool enter()override {
-            return false;//editor.enter
+        bool enter()override {//editor.enter
+            return false;
         }
-        bool backspace()override {
+        bool backspace()override {//editor.backspace
             return false;
         }
 
@@ -603,13 +620,10 @@ namespace h {
                 FindEditor findEditor(editor, getTitleLine("find"));
                 InputManager(&findEditor).input();
                 editor.warp(findEditor.getX(),findEditor.getY());
-                
-                
             }
                 break;
-            case 'r'://read
+            case 'r':
             {
-                //codepage じっそうしろ
                 Console::getInstance().addDefLine(editor.getHeight());
                 Console::getInstance().move(0, 0);
                 auto cmd = split(getTitleLine("read")," ");
@@ -621,6 +635,8 @@ namespace h {
                 break;
             case 'q':
                 return false;
+                break;
+            case 'p'://移動コマンド
                 break;
             }
             return true;
@@ -636,14 +652,13 @@ namespace h {
         bool backspace() override {
             auto erased = editor.backspace();
             if (erased == -1) {
-                
                 h::Console::getInstance()
                     .appendAboveCopyLine(editor.getX(), editor.getY())
                     .scroll(editor.getY() + 1, true);
                 return true;
             }
             if (!erased)return true;
-            h::Console::getInstance().around(editor.getX() +erased , editor.getY(), true, erased);//erased,erased
+            h::Console::getInstance().around(editor.getX() +erased , editor.getY(), true, erased);
             return true;
         }
         bool insert(char c) override{
@@ -659,7 +674,7 @@ namespace h {
             h::Console::getInstance().move(editor.getX(), editor.getY());
         }
         int up()override {
-            return editor.up();//同じ処理が多い
+            return editor.up();
         }
 
         int down()override {
@@ -679,9 +694,6 @@ namespace h {
 }
 int main(int argc, char* argv[]) {
     h::Vim vim(argc, argv);
-    h::InputManager(&vim).input();//manager(&h::Vim(...)) error
-    //while (true) {
-    //    std::cout <<(char) _getch();
-    //}
+    h::InputManager(&vim).input();
     return 0;
 }
