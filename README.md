@@ -31,9 +31,9 @@ f->find(検索)
 >find\>findWord
 >
 # ファイル説明
-command_1.cpp
+command_1.cpp  
 |-command_2と違う方法で実装されたもの。  
-command_2.cpp
+command_2.cpp  
 |-command_1が新しくなるまで最新だったもの。  
-simple.cpp
+simple.cpp  
 |-command_2から派生して最低限の実装しかしないもの  
