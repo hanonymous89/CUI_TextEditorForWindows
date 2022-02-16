@@ -8,15 +8,6 @@
 #include <algorithm>
 #include <functional>
 namespace h {
-    //int maxDistanceLine(std::string str,std::string find="\n") {//splitしてからalgorithmでやるのがいいかもー(遅そうだから
-    //    int max;
-    //    while (true) {
-    //        auto found = str.find(find);
-    //        if (found == std::string::npos) {
-    //            return str.size();
-    //        }
-    //    }
-    //}
     template <class T>
     inline auto find(std::string str, const std::string cut, T func) {
         for (auto pos = str.find(cut); pos != std::string::npos; pos = str.find(cut)) {
@@ -301,16 +292,10 @@ namespace h {
             FillConsoleOutputAttribute(console, color, length, { x,y += def }, &length);
             return *this;
         }
-        //inline std::wstring getLine(short y) {
-        //    DWORD p;
-        //    std::unique_ptr<wchar_t> str(new wchar_t[width]);
-        //    if(!ReadConsoleOutputCharacter(console, str.get(), width, { 0,y+=def }, &p))return L"";
-        //    return std::wstring(str.get(),str.get()+p);
-        //}
-        inline std::wstring getLine(short width,short y) {
+        inline std::wstring getLine(short width,short y,short startPos=0) {
             DWORD p;
             std::unique_ptr<wchar_t> str(new wchar_t[width]);
-            if (!ReadConsoleOutputCharacter(console, str.get(), width, { 0,y += def }, &p))return L"";
+            if (!ReadConsoleOutputCharacter(console, str.get(), width, { startPos,y += def }, &p))return L"";
             return std::wstring(str.get(), str.get() + p);
         }
     };
@@ -318,6 +303,7 @@ namespace h {
     private:
         std::vector<int> sizes;
         int max;
+        bool flag;
     public:
         ~CUI_TextEditor() {
             h::Console::getInstance().move(0,sizes.size());
@@ -325,7 +311,6 @@ namespace h {
         CUI_TextEditor(std::string text) {
             h::Console::getInstance();
             std::cout << text;
-            //x,y static dummy=
             auto lines = h::split(text, "\n");
             if (!lines.size()) {
                 sizes.emplace_back(0);
@@ -338,7 +323,6 @@ namespace h {
             for (auto& line : lines) {
                 sizes.emplace_back(line.size());
             }
-            //std::copy(sizes.begin(), sizes.end(), sizes.begin(), [](std::string str) {return str.size(); });ドラフトに入ってくれー
         }
         auto& updataSize() {
             if (!beBigger(max, sizes[y]))return *this;
@@ -346,12 +330,12 @@ namespace h {
             return *this;
         }
         int left() override{
-            return x-=x>0;
+            return x -= x > 0;
         }
         int right() override{
             return x+= sizes[y] > x;
         }
-        int fitY() {
+        inline int fitY() {
             if (sizes[y] < x) {
                 x = sizes[y];
             }
@@ -366,7 +350,15 @@ namespace h {
             return fitY();
         }
         bool esc()override {
-            return false;
+            switch (_getch()) {
+            case 'f':
+
+                break;
+            case 'q':
+                return false;
+                break;
+            }
+            return true;
         }
         bool enter()override{
             h::Console::getInstance().scroll(y + 1).appendUnderCopyLine(x, y);
@@ -380,21 +372,30 @@ namespace h {
             if (!x) {
                 if (!y)return true;
                 x = sizes[--y];
-                sizes[y] += sizes[y+1];
+                sizes[y] += sizes[y + 1];
                 updataSize();
-                h::Console::getInstance().appendAboveCopyLine(x, y).scroll(y+1, true);
-                sizes.erase(std::next(sizes.begin(),y+1));//最後に空白あるところだけ管理
+                h::Console::getInstance().appendAboveCopyLine(x, y).scroll(y + 1, true);
+                sizes.erase(std::next(sizes.begin(), y + 1));//最後に空白あるところだけ管理or最後に|とかでマークつける
                 return true;
             }
-            h::Console::getInstance().around(x, y, true);
+            h::Console::getInstance().around(x, y,true,1);
             --sizes[y];
             left();
             return true;
         }
         bool insert(char c)override{
-            h::Console::getInstance().around(x, y, false);
+            if (c == 0)return true;
             std::cout << c;
             ++x;
+            if (flag) {
+                flag = false;
+                ++x;
+            }
+            else if (IsDBCSLeadByte(c)) {
+                h::Console::getInstance().around(x, y);
+                --x;
+                flag = true;
+            }
             ++sizes[y];
             updataSize();
             return true;
@@ -406,22 +407,22 @@ namespace h {
             std::wstring str;
             for (auto line=0; auto & size : sizes) {
                 str += h::Console::getInstance().getLine(size, line)+L"\n";
-                //str+="\n"のほうが早い
                 ++line;
             }
             return str;
         }
     };
-    
 }
 
 int main(int argc,char* argv[]) {
-    enum OPTION{
-        FILE_NAME=1,
+    enum OPTION {
+        //EXE PATH
+        FILE_NAME = 1,
         CODE_PAGE
     };
     h::File file("");
     if (argc >OPTION::FILE_NAME) {
+
         file.setName(argv[OPTION::FILE_NAME]);
     }
     if (argc > OPTION::CODE_PAGE) {
