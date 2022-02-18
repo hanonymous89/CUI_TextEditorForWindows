@@ -16,6 +16,15 @@ namespace h {
         }
         return str;
     }
+    inline auto findAll(std::string str, const std::string cut) {
+        std::vector<int> data;
+        int pos = 0;
+        find(str, cut, [&](std::string str) {
+            pos += str.size() + cut.size();
+            data.push_back(pos);
+            });
+        return data;
+    }
     inline auto split(std::string str, const std::string cut) noexcept(false) {
         std::vector<std::string> data;
         str = find(str, cut, [&](std::string str) {
@@ -49,7 +58,7 @@ namespace h {
     class File {
     private:
         std::string name,
-                    content;
+            content;
     public:
         inline File(const std::string name)noexcept(true) :name(name) {
             read();
@@ -95,8 +104,12 @@ namespace h {
         int x = 0, y = 0;
     public:
         virtual ~Point() {}//純仮想関数じゃなくてもいいかも
-        virtual int up() = 0;
-        virtual int down() = 0;
+        virtual int up() {
+            return 0;
+        }
+        virtual int down() {
+            return 0;
+        }
         virtual int left() = 0;
         virtual int right() = 0;
         virtual int getX() {
@@ -173,7 +186,7 @@ namespace h {
             inputBase(std::bind(&InputManagerIntarface::absolute, p));
         }
     };
-    class Console{
+    class Console {
     public:
         auto& setScrollSize(short width, short height) {
             if (beBigger(this->width, width) | beBigger(this->height, def + height)) {
@@ -250,7 +263,7 @@ namespace h {
             range.Left = 0;
             range.Right = this->width;
             range.Top = y;
-            range.Bottom = y+1;
+            range.Bottom = y + 1;
             info.Attributes = 0;
             info.Char.AsciiChar = ' ';
             clip.Left = x;
@@ -286,6 +299,15 @@ namespace h {
             auto bufSize = GetConsoleTitle(title, MAX_PATH);
             return std::wstring(title, title + bufSize);
         }
+        inline auto sGetTitle() {
+            CHAR title[MAX_PATH];
+            auto bufSize = GetConsoleTitleA(title, MAX_PATH);
+            return std::string(title, title + bufSize);
+        }
+        inline auto& sSetTitle(std::string str) {
+            SetConsoleTitleA(str.c_str());
+            return *this;
+        }
         inline auto& setTitle(std::wstring str) {
             SetConsoleTitle(str.c_str());
             return *this;
@@ -298,7 +320,7 @@ namespace h {
             FillConsoleOutputAttribute(console, color, length, { x,y += def }, &length);
             return *this;
         }
-        inline std::wstring getLine(short width,short y,short startPos=0) {
+        inline std::wstring getLine(short width, short y, short startPos = 0) {
             DWORD p;
             std::unique_ptr<wchar_t> str(new wchar_t[width]);
             if (!ReadConsoleOutputCharacter(console, str.get(), width, { startPos,y += def }, &p))return L"";
@@ -308,7 +330,117 @@ namespace h {
             DWORD p;
             std::unique_ptr<char> str(new char[width]);
             if (!ReadConsoleOutputCharacterA(console, str.get(), width, { startPos,y += def }, &p))return "";
-            return std::string(str.get(),str.get() + p);
+            return std::string(str.get(), str.get() + p);
+        }
+    };
+    class CUI_Cmd :public InputManagerIntarface {
+    protected:
+        //get+cだと|入れれない
+        std::string def, cmd;
+    public:
+        CUI_Cmd(std::string def) :def(def) {
+            absolute();
+        }
+        auto getCmd() {
+            return cmd;
+        }
+        bool esc() override{
+            return true;
+        }
+        bool enter() override{
+            return true;
+        }
+        bool backspace() override{
+            auto byteSize =1+(x > 0 && IsDBCSLeadByte(cmd[x - 2]));
+            cmd.erase(x-=byteSize,byteSize);
+            return true;
+        }
+        bool insert(char c) override{
+            if (!c)return true;
+            cmd.insert(x, 1, c);
+            ++x;
+            return true;
+        }
+        int left() override{
+            if (x <= 0)return x;
+            return x-=(--x>0&&IsDBCSLeadByte(cmd[x-1]));
+        }
+        int right() override{
+            if (x >= cmd.size())return x;
+            return x+=1+IsDBCSLeadByte(cmd[x]);
+        }
+        void absolute() {//find>
+            auto str = def + ">" + cmd;
+            str.insert(x + def.size() + 1, "|");
+            h::Console::getInstance().sSetTitle(str);
+        }
+    };
+    class CUI_CmdLine:public CUI_Cmd {
+    public:
+        CUI_CmdLine(std::string def) :CUI_Cmd(def) {
+
+        }
+        bool enter()override {
+            return cmd.empty();
+        }
+    };
+    class CUI_Find :public InputManagerIntarface {
+    private:
+        int size;
+        std::vector<std::pair<int,std::vector<int> > > data;
+    public:
+        void paint(bool color = false) {
+            for (auto& [y, xs] :data) {
+                for (auto x : xs) {
+                    h::Console::getInstance().color(size, x-size, y,color);
+                }
+            }
+        }
+        CUI_Find(std::vector<int> data,std::string find):size(find.size()) {
+            for (auto y = 0; auto width : data) {
+                auto found = findAll(h::Console::getInstance().sGetLine(width, y), find);
+                if (found.empty()) {
+                    ++y;
+                    continue;
+                }
+                this->data.emplace_back(y,found);
+                ++y;
+            }
+            paint();
+        }
+        ~CUI_Find() {
+            paint(true);
+        }
+        bool enter()override {
+            return false;
+        }
+        bool esc()override {
+            return false;
+        }
+        bool backspace()override {
+            return false;
+        }
+        int up() override{
+            return y -= y > 0;
+        }
+        int down()override {
+            return y += y < data.size()-1;
+        }
+        int left() override{
+            if (--x >= 0)return x;
+            up();
+            return x=data[y].second.size()-1;
+        }
+        int right() override{
+            if (++x < data[y].second.size())return x;
+            down();
+            return x=0;
+        }
+        bool insert(char c){
+            return false;
+        }
+        void absolute()override{
+            h::Console::getInstance().move(data[y].second[x], data[y].first);
         }
     };
     class CUI_TextEditor:public InputManagerIntarface{
@@ -362,9 +494,24 @@ namespace h {
             y += sizes.size() - 1 > y;
             return fitXY();
         }
+        auto getCmdLine(std::string def) {
+            CUI_CmdLine cmd(def);
+            InputManager(&cmd).input();
+            return cmd.getCmd();
+        }
         bool esc()override {
             switch (_getch()) {
+            //case 'c':
+            //{
+            //    CUI_Cmd cmd("cmd");//inputmanagerintereface=cuicmd(cmd
+            //    InputManager(&cmd).input();
+            //}
+                break;
             case 'f':
+            {
+                CUI_Find find(sizes,getCmdLine("find"));
+                InputManager(&find).input();
+            }
 
                 break;
             case 'q':
