@@ -40,6 +40,12 @@ namespace h {
         }
         return false;
     }
+    inline std::string wstringToString(const std::wstring str)noexcept(true) {
+        const int BUFSIZE = WideCharToMultiByte(CP_OEMCP, 0, str.c_str(), -1, (char*)nullptr, 0, nullptr, nullptr);
+        std::unique_ptr<char> wtext(new char[BUFSIZE]);
+        WideCharToMultiByte(CP_OEMCP, 0, str.c_str(), -1, wtext.get(), BUFSIZE, nullptr, nullptr);
+        return std::string(wtext.get(), wtext.get() + BUFSIZE - 1);
+    }
     class File {
     private:
         std::string name,
@@ -298,6 +304,12 @@ namespace h {
             if (!ReadConsoleOutputCharacter(console, str.get(), width, { startPos,y += def }, &p))return L"";
             return std::wstring(str.get(), str.get() + p);
         }
+        inline std::string sGetLine(short width, short y, short startPos = 0) {
+            DWORD p;
+            std::unique_ptr<char> str(new char[width]);
+            if (!ReadConsoleOutputCharacterA(console, str.get(), width, { startPos,y += def }, &p))return "";
+            return std::string(str.get(),str.get() + p);
+        }
     };
     class CUI_TextEditor:public InputManagerIntarface{
     private:
@@ -320,7 +332,7 @@ namespace h {
                 return first.size() < second.size();
                 })->size();
             h::Console::getInstance().move(0, 0).setScrollSize(max,lines.size());
-            for (auto& line : lines) {
+            for (auto & line : lines) {
                 sizes.emplace_back(line.size());
             }
         }
@@ -330,24 +342,25 @@ namespace h {
             return *this;
         }
         int left() override{
-            return x -= x > 0;
+            return x -= (x > 0)+ IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x-2)[0]);//(a+=b)+=func(2,y,x-1)
         }
         int right() override{
-            return x+= sizes[y] > x;
+            return x+= (sizes[y] > x)+ IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x)[0]);
         }
-        inline int fitY() {
+        inline int fitXY() {
             if (sizes[y] < x) {
                 x = sizes[y];
             }
+            x -= IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x - 1)[0]);
             return y;
         }
         int up() override{
             y-=y>0;
-            return fitY();
+            return fitXY();
         }
         int down()override {
             y += sizes.size() - 1 > y;
-            return fitY();
+            return fitXY();
         }
         bool esc()override {
             switch (_getch()) {
@@ -362,7 +375,7 @@ namespace h {
         }
         bool enter()override{
             h::Console::getInstance().scroll(y + 1).appendUnderCopyLine(x, y);
-            sizes.insert(std::next(sizes.begin(), y), sizes[y] - x);
+            sizes.insert(std::next(sizes.begin(), 1+y), sizes[y] - x);
             sizes[y] = x;
             x = 0;
             ++y;
@@ -378,13 +391,15 @@ namespace h {
                 sizes.erase(std::next(sizes.begin(), y + 1));//最後に空白あるところだけ管理or最後に|とかでマークつける
                 return true;
             }
-            h::Console::getInstance().around(x, y,true,1);
-            --sizes[y];
-            left();
+            auto byteSize =1+IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x - 2)[0]);
+            h::Console::getInstance().around(x, y,true, byteSize);
+            sizes[y]-=byteSize;
+            x -= byteSize;
             return true;
         }
         bool insert(char c)override{
             if (c == 0)return true;
+            h::Console::getInstance().around(x, y,false);
             std::cout << c;
             ++x;
             if (flag) {
@@ -392,7 +407,9 @@ namespace h {
                 ++x;
             }
             else if (IsDBCSLeadByte(c)) {
-                h::Console::getInstance().around(x, y);
+                h::Console::getInstance()
+                    .around(x, y,false)
+                    .around(x, y);
                 --x;
                 flag = true;
             }
