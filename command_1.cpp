@@ -357,7 +357,8 @@ namespace h {
             return true;
         }
         inline bool backspace() override{
-            auto byteSize =1+(x > 0 && IsDBCSLeadByte(cmd[x - 2]));
+            auto byteSize =1+(x > 1 && IsDBCSLeadByte(cmd[x - 2]));
+            if (x - byteSize < 0)return true;
             cmd.erase(x-=byteSize,byteSize);
             return true;
         }
@@ -446,12 +447,15 @@ namespace h {
             return false;
         }
         inline void absolute()override{
+            if (!data.size())return;
             h::Console::getInstance().move(data[y].second[x], data[y].first);
         }
         inline int getX()override {
+            if (!data.size())return 0;
             return data[y].second[x];
         }
         inline int getY()override {
+            if (!data.size())return 0;//-1 if-1 -> x=x;
             return data[y].first;
         }
     };
