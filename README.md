@@ -23,7 +23,7 @@ s->save(保存)
 >fileName\>fineName
 >
 0->option(オプション)  
-コマンドラインと同様につい買います
+コマンドラインと同様に使います  
 >fileName\>fineName codePage
 >
 f->find(検索)  
