@@ -22,18 +22,11 @@ s->save(保存)
 もしファイルが設定されていない場合入力を求められます。  
 >fileName\>fineName
 >
-m->modification(変更)  
-保存先ファイル名を変更します。  
->fileName\>fineName
+0->option(オプション)  
+コマンドラインと同様につい買います
+>fileName\>fineName codePage
 >
 f->find(検索)  
 現在の状態から文字列を検索します。  
 >find\>findWord
 >
-# ファイル説明
-command_1.cpp  
-|-command_2と違う方法で実装されたもの。  
-command_2.cpp  
-|-command_1が新しくなるまで最新だったもの。  
-simple.cpp  
-|-command_2から派生して最低限の実装しかしないもの  
