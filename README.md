@@ -22,7 +22,7 @@ s->save(保存)
 もしファイルが設定されていない場合入力を求められます。  
 >fileName\>fineName
 >
-0->option(オプション)  
+o->option(オプション)  
 コマンドラインと同様に使います  
 >fileName\>fineName codePage
 >
