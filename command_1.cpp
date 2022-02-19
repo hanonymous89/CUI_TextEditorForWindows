@@ -6,6 +6,7 @@
 #include <fstream>
 #include <vector>
 #include <algorithm>
+#include <format>
 #include <functional>
 namespace h {
     template <class T>
@@ -442,31 +443,62 @@ namespace h {
         void absolute()override{
             h::Console::getInstance().move(data[y].second[x], data[y].first);
         }
+        int getX()override {
+            return data[y].second[x];
+        }
+        int getY()override {
+            return data[y].first;
+        }
     };
-    class CUI_TextEditor:public InputManagerIntarface{
+    class CUI_TextEditor :public InputManagerIntarface {
     private:
         std::vector<int> sizes;
         int max;
         bool flag;
+        File file;
+        enum OPTION {
+            //EXE PATH
+            FILE_NAME = 1,
+            CODE_PAGE
+        };
     public:
         ~CUI_TextEditor() {
-            h::Console::getInstance().move(0,sizes.size());
+            h::Console::getInstance().move(0, sizes.size());
         }
-        CUI_TextEditor(std::string text) {
-            h::Console::getInstance();
-            std::cout << text;
-            auto lines = h::split(text, "\n");
+        template <class T>
+        auto& resetOption(int argc, T argv, int hash = 0) {
+            if (argc > FILE_NAME - hash) {
+                file.setName(argv[FILE_NAME - hash]);
+            }
+            if (argc > CODE_PAGE - hash) {
+                h::Console::getInstance().setCodePage(std::stoi(argv[CODE_PAGE - hash]));
+            }
+            return *this;
+        }
+        template <class T>
+        auto & reset(int argc, T argv, int hash=0) {
+            h::Console::getInstance()
+                .addDefLine(sizes.size())
+                .move(0,0);
+            sizes.clear();
+            resetOption(argc, argv, hash);
+            std::cout << file.read().getContent();
+            auto lines = h::split(file.getContent(), "\n");
             if (!lines.size()) {
                 sizes.emplace_back(0);
-                return;
+                return *this;
             }
-            max=std::max_element(lines.begin(), lines.end(), [](auto first, auto second) {
+            max = std::max_element(lines.begin(), lines.end(), [](auto first, auto second) {
                 return first.size() < second.size();
                 })->size();
-            h::Console::getInstance().move(0, 0).setScrollSize(max,lines.size());
-            for (auto & line : lines) {
-                sizes.emplace_back(line.size());
-            }
+                h::Console::getInstance().move(0, 0).setScrollSize(max, lines.size());
+                for (auto& line : lines) {
+                    sizes.emplace_back(line.size());
+                }
+            return *this;
+        }
+        CUI_TextEditor(int argc, char* argv[]) :file("") {
+            reset(argc,argv);
         }
         auto& updataSize() {
             if (!beBigger(max, sizes[y]))return *this;
@@ -499,20 +531,56 @@ namespace h {
             InputManager(&cmd).input();
             return cmd.getCmd();
         }
+        auto toWstring() {
+            std::wstring str;
+            for (auto line = 0; auto & size : sizes) {
+                str += h::Console::getInstance().getLine(size, line) + L"\n";
+                ++line;
+            }
+            return str;
+        }
         bool esc()override {
             switch (_getch()) {
-            //case 'c':
-            //{
-            //    CUI_Cmd cmd("cmd");//inputmanagerintereface=cuicmd(cmd
-            //    InputManager(&cmd).input();
-            //}
+                break;
+            case 's':
+            {
+
+                h::Console::getInstance().sSetTitle("saving->" + file.getName());
+                file.wWrite(toWstring(), true);
+                h::Console::getInstance().sSetTitle("saved->"+file.getName());
+                /*
+                file.write("",true);
+                for(auto y=0;auto width:sizes){
+                    file.write(h::console::getline(...));
+                    console->settitle(format(saveing...y...sizes.size())))
+                    ++y;
+                }
+                */
+            }
                 break;
             case 'f':
             {
                 CUI_Find find(sizes,getCmdLine("find"));
                 InputManager(&find).input();
+                x = find.getX();
+                y = find.getY();
+                h::Console::getInstance().sSetTitle(std::format("found->({},{})", x, y));
             }
 
+                break;
+            case 'o':
+            {
+                auto cmdLine = split(getCmdLine("option"), " ");
+                resetOption(cmdLine.size(), cmdLine, 1);
+                h::Console::getInstance().sSetTitle(std::format("fileName->{} codePage->{}", file.getName(), h::Console::getInstance().getCodePage()));
+            }
+                break;
+            case 'r':
+            {
+                auto cmdLine = split(getCmdLine("read"), " ");
+                reset(cmdLine.size(), cmdLine, 1);
+                h::Console::getInstance().sSetTitle("read->"+file.getName());
+            }
                 break;
             case 'q':
                 return false;
@@ -567,33 +635,12 @@ namespace h {
         void absolute()override {
             h::Console::getInstance().move(x, y);
         }
-        auto toWstring() {
-            std::wstring str;
-            for (auto line=0; auto & size : sizes) {
-                str += h::Console::getInstance().getLine(size, line)+L"\n";
-                ++line;
-            }
-            return str;
-        }
+
     };
 }
 
 int main(int argc,char* argv[]) {
-    enum OPTION {
-        //EXE PATH
-        FILE_NAME = 1,
-        CODE_PAGE
-    };
-    h::File file("");
-    if (argc >OPTION::FILE_NAME) {
-
-        file.setName(argv[OPTION::FILE_NAME]);
-    }
-    if (argc > OPTION::CODE_PAGE) {
-        h::Console::getInstance().setCodePage(std::stoi(argv[OPTION::CODE_PAGE]));
-    }
-    h::CUI_TextEditor editor(file.read().getContent());
+    h::CUI_TextEditor editor(argc,argv);
     h::InputManager(&editor).input();
-    file.wWrite(editor.toWstring(),true);
     return 0;
 }
