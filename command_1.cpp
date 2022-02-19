@@ -137,6 +137,7 @@ namespace h {
             while (loop) {
                 bool hit = true;
                 auto c = _getch();
+                char next;
                 switch (c) {
                 case 0x1b:
                     loop = p->esc();
@@ -159,7 +160,7 @@ namespace h {
                     absolute();
                     continue;
                 }
-                switch (_getch()) {
+                switch (next=_getch()) {
                 case 0x48:
                     p->up();
                     break;
@@ -172,6 +173,10 @@ namespace h {
                 case 0x4d:
                     p->right();
                     break;
+                default:
+                    p->insert(c);
+                    absolute();
+                    p->insert(next);
                 }
                 absolute();
             }
@@ -531,10 +536,18 @@ namespace h {
             InputManager(&cmd).input();
             return cmd.getCmd();
         }
-        inline auto toWstring() {
-            std::wstring str;
+        //inline auto toWstring() {
+        //    std::wstring str;
+        //    for (auto line = 0; auto & size : sizes) {
+        //        str += h::Console::getInstance().getLine(size, line) + L"\n";
+        //        ++line;
+        //    }
+        //    return str;
+        //}
+        inline auto toString() {
+            std::string str;
             for (auto line = 0; auto & size : sizes) {
-                str += h::Console::getInstance().getLine(size, line) + L"\n";
+                str += h::Console::getInstance().sGetLine(size, line) + "\n";
                 ++line;
             }
             return str;
@@ -543,7 +556,7 @@ namespace h {
             switch (_getch()) {
             case 's':
             {
-                file.wWrite(toWstring(), true);
+                file.write(toString(), true);
                 //h::Console::getInstance().sSetTitle("saved->"+file.getName());
             }
                 break;
