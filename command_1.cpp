@@ -339,38 +339,38 @@ namespace h {
         //get+cだと|入れれない
         std::string def, cmd;
     public:
-        CUI_Cmd(std::string def) :def(def) {
+        inline CUI_Cmd(std::string def) :def(def) {
             absolute();
         }
-        auto getCmd() {
+        inline auto getCmd() {
             return cmd;
         }
-        bool esc() override{
+        inline bool esc() override{
             return true;
         }
-        bool enter() override{
+        inline bool enter() override{
             return true;
         }
-        bool backspace() override{
+        inline bool backspace() override{
             auto byteSize =1+(x > 0 && IsDBCSLeadByte(cmd[x - 2]));
             cmd.erase(x-=byteSize,byteSize);
             return true;
         }
-        bool insert(char c) override{
+        inline bool insert(char c) override{
             if (!c)return true;
             cmd.insert(x, 1, c);
             ++x;
             return true;
         }
-        int left() override{
+        inline int left() override{
             if (x <= 0)return x;
             return x-=(--x>0&&IsDBCSLeadByte(cmd[x-1]));
         }
-        int right() override{
+        inline int right() override{
             if (x >= cmd.size())return x;
             return x+=1+IsDBCSLeadByte(cmd[x]);
         }
-        void absolute() {//find>
+        inline void absolute() {//find>
             auto str = def + ">" + cmd;
             str.insert(x + def.size() + 1, "|");
             h::Console::getInstance().sSetTitle(str);
@@ -378,10 +378,10 @@ namespace h {
     };
     class CUI_CmdLine:public CUI_Cmd {
     public:
-        CUI_CmdLine(std::string def) :CUI_Cmd(def) {
+        inline CUI_CmdLine(std::string def) :CUI_Cmd(def) {
 
         }
-        bool enter()override {
+        inline bool enter()override {
             return cmd.empty();
         }
     };
@@ -390,14 +390,14 @@ namespace h {
         int size;
         std::vector<std::pair<int,std::vector<int> > > data;
     public:
-        void paint(bool color = false) {
+        inline void paint(bool color = false) {
             for (auto& [y, xs] :data) {
                 for (auto x : xs) {
                     h::Console::getInstance().color(size, x-size, y,color);
                 }
             }
         }
-        CUI_Find(std::vector<int> data,std::string find):size(find.size()) {
+        inline CUI_Find(std::vector<int> data,std::string find):size(find.size()) {
             for (auto y = 0; auto width : data) {
                 auto found = findAll(h::Console::getInstance().sGetLine(width, y), find);
                 if (found.empty()) {
@@ -409,44 +409,44 @@ namespace h {
             }
             paint();
         }
-        ~CUI_Find() {
+        inline ~CUI_Find() {
             paint(true);
         }
-        bool enter()override {
+        inline bool enter()override {
             return false;
         }
-        bool esc()override {
+        inline bool esc()override {
             return false;
         }
-        bool backspace()override {
+        inline bool backspace()override {
             return false;
         }
-        int up() override{
+        inline int up() override{
             return y -= y > 0;
         }
-        int down()override {
+        inline int down()override {
             return y += y < data.size()-1;
         }
-        int left() override{
+        inline int left() override{
             if (--x >= 0)return x;
             up();
             return x=data[y].second.size()-1;
         }
-        int right() override{
+        inline int right() override{
             if (++x < data[y].second.size())return x;
             down();
             return x=0;
         }
-        bool insert(char c){
+        inline bool insert(char c){
             return false;
         }
-        void absolute()override{
+        inline void absolute()override{
             h::Console::getInstance().move(data[y].second[x], data[y].first);
         }
-        int getX()override {
+        inline int getX()override {
             return data[y].second[x];
         }
-        int getY()override {
+        inline int getY()override {
             return data[y].first;
         }
     };
@@ -462,11 +462,11 @@ namespace h {
             CODE_PAGE
         };
     public:
-        ~CUI_TextEditor() {
+        inline ~CUI_TextEditor() {
             h::Console::getInstance().move(0, sizes.size());
         }
         template <class T>
-        auto& resetOption(int argc, T argv, int hash = 0) {
+        inline auto& resetOption(int argc, T argv, int hash = 0) {
             if (argc > FILE_NAME - hash) {
                 file.setName(argv[FILE_NAME - hash]);
             }
@@ -476,7 +476,7 @@ namespace h {
             return *this;
         }
         template <class T>
-        auto & reset(int argc, T argv, int hash=0) {
+        inline auto & reset(int argc, T argv, int hash=0) {
             h::Console::getInstance()
                 .addDefLine(sizes.size())
                 .move(0,0);
@@ -497,18 +497,18 @@ namespace h {
                 }
             return *this;
         }
-        CUI_TextEditor(int argc, char* argv[]) :file("") {
+        inline CUI_TextEditor(int argc, char* argv[]) :file("") {
             reset(argc,argv);
         }
-        auto& updataSize() {
+        inline auto& updataSize() {
             if (!beBigger(max, sizes[y]))return *this;
             h::Console::getInstance().setScrollSize(max, sizes.size());
             return *this;
         }
-        int left() override{
+        inline int left() override{
             return x -= (x > 0)+ IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x-2)[0]);//(a+=b)+=func(2,y,x-1)
         }
-        int right() override{
+        inline int right() override{
             return x+= (sizes[y] > x)+ IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x)[0]);
         }
         inline int fitXY() {
@@ -518,20 +518,20 @@ namespace h {
             x -= IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x - 1)[0]);
             return y;
         }
-        int up() override{
+        inline int up() override{
             y-=y>0;
             return fitXY();
         }
-        int down()override {
+        inline int down()override {
             y += sizes.size() - 1 > y;
             return fitXY();
         }
-        auto getCmdLine(std::string def) {
+        inline auto getCmdLine(std::string def) {
             CUI_CmdLine cmd(def);
             InputManager(&cmd).input();
             return cmd.getCmd();
         }
-        auto toWstring() {
+        inline auto toWstring() {
             std::wstring str;
             for (auto line = 0; auto & size : sizes) {
                 str += h::Console::getInstance().getLine(size, line) + L"\n";
@@ -539,23 +539,12 @@ namespace h {
             }
             return str;
         }
-        bool esc()override {
+        inline bool esc()override {
             switch (_getch()) {
-                break;
             case 's':
             {
-
-                h::Console::getInstance().sSetTitle("saving->" + file.getName());
                 file.wWrite(toWstring(), true);
-                h::Console::getInstance().sSetTitle("saved->"+file.getName());
-                /*
-                file.write("",true);
-                for(auto y=0;auto width:sizes){
-                    file.write(h::console::getline(...));
-                    console->settitle(format(saveing...y...sizes.size())))
-                    ++y;
-                }
-                */
+                //h::Console::getInstance().sSetTitle("saved->"+file.getName());
             }
                 break;
             case 'f':
@@ -564,7 +553,7 @@ namespace h {
                 InputManager(&find).input();
                 x = find.getX();
                 y = find.getY();
-                h::Console::getInstance().sSetTitle(std::format("found->({},{})", x, y));
+                //h::Console::getInstance().sSetTitle(std::format("found->({},{})", x, y));
             }
 
                 break;
@@ -572,14 +561,14 @@ namespace h {
             {
                 auto cmdLine = split(getCmdLine("option"), " ");
                 resetOption(cmdLine.size(), cmdLine, 1);
-                h::Console::getInstance().sSetTitle(std::format("fileName->{} codePage->{}", file.getName(), h::Console::getInstance().getCodePage()));
+                //h::Console::getInstance().sSetTitle(std::format("fileName->{} codePage->{}", file.getName(), h::Console::getInstance().getCodePage()));
             }
                 break;
             case 'r':
             {
                 auto cmdLine = split(getCmdLine("read"), " ");
                 reset(cmdLine.size(), cmdLine, 1);
-                h::Console::getInstance().sSetTitle("read->"+file.getName());
+                //h::Console::getInstance().sSetTitle("read->"+file.getName());
             }
                 break;
             case 'q':
@@ -588,7 +577,7 @@ namespace h {
             }
             return true;
         }
-        bool enter()override{
+        inline bool enter()override{
             h::Console::getInstance().scroll(y + 1).appendUnderCopyLine(x, y);
             sizes.insert(std::next(sizes.begin(), 1+y), sizes[y] - x);
             sizes[y] = x;
@@ -596,7 +585,7 @@ namespace h {
             ++y;
             return true;
         }
-        bool backspace() override{
+        inline bool backspace() override{
             if (!x) {
                 if (!y)return true;
                 x = sizes[--y];
@@ -612,7 +601,7 @@ namespace h {
             x -= byteSize;
             return true;
         }
-        bool insert(char c)override{
+        inline bool insert(char c)override{
             if (c == 0)return true;
             h::Console::getInstance().around(x, y,false);
             std::cout << c;
@@ -632,7 +621,7 @@ namespace h {
             updataSize();
             return true;
         }
-        void absolute()override {
+        inline void absolute()override {
             h::Console::getInstance().move(x, y);
         }
 
