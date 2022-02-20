@@ -484,6 +484,11 @@ namespace h {
             }
             return *this;
         }
+        inline auto& updateSize() {
+            beBigger(max, sizes[y]);
+            h::Console::getInstance().setScrollSize(max, sizes.size());
+            return *this;
+        }
         template <class T>
         inline auto & reset(int argc, T argv, int hash=0) {
             h::Console::getInstance()
@@ -491,8 +496,7 @@ namespace h {
                 .move(0,0);
             sizes.clear();
             resetOption(argc, argv, hash);
-            std::cout << file.read().getContent();
-            auto lines = h::split(file.getContent(), "\n");
+            auto lines = h::split(file.read().getContent(), "\n");
             if (!lines.size()) {
                 sizes.emplace_back(0);
                 return *this;
@@ -504,16 +508,14 @@ namespace h {
                 for (auto& line : lines) {
                     sizes.emplace_back(line.size());
                 }
+                std::cout << file.getContent();
+                updateSize();
             return *this;
         }
         inline CUI_TextEditor(int argc, char* argv[]) :file("") {
             reset(argc,argv);
         }
-        inline auto& updataSize() {
-            if (!beBigger(max, sizes[y]))return *this;
-            h::Console::getInstance().setScrollSize(max, sizes.size());
-            return *this;
-        }
+
         inline int left() override{
             return x -= (x > 0)+ IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x-2)[0]);//(a+=b)+=func(2,y,x-1)
         }
@@ -540,14 +542,6 @@ namespace h {
             InputManager(&cmd).input();
             return cmd.getCmd();
         }
-        //inline auto toWstring() {
-        //    std::wstring str;
-        //    for (auto line = 0; auto & size : sizes) {
-        //        str += h::Console::getInstance().getLine(size, line) + L"\n";
-        //        ++line;
-        //    }
-        //    return str;
-        //}
         inline auto toString() {
             std::string str;
             for (auto line = 0; auto & size : sizes) {
@@ -600,6 +594,7 @@ namespace h {
             sizes[y] = x;
             x = 0;
             ++y;
+            updateSize();
             return true;
         }
         inline bool backspace() override{
@@ -607,7 +602,7 @@ namespace h {
                 if (!y)return true;
                 x = sizes[--y];
                 sizes[y] += sizes[y + 1];
-                updataSize();
+                updateSize();
                 h::Console::getInstance().appendAboveCopyLine(x, y).scroll(y + 1, true);
                 sizes.erase(std::next(sizes.begin(), y + 1));//最後に空白あるところだけ管理or最後に|とかでマークつける
                 return true;
@@ -635,7 +630,7 @@ namespace h {
                 flag = true;
             }
             ++sizes[y];
-            updataSize();
+            updateSize();
             return true;
         }
         inline void absolute()override {
