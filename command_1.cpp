@@ -517,9 +517,16 @@ namespace h {
         }
 
         inline int left() override{
-            return x -= (x > 0)+ IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x-2)[0]);//(a+=b)+=func(2,y,x-1)
+            if(x)
+                return x -= (x > 0) + IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x - 2)[0]);//(a+=b)+=func(2,y,x-1)
+            if (!y)return x;
+            return x = sizes[--y];
         }
         inline int right() override{
+            if (x == sizes[y]&&y<sizes.size()-1) {
+                ++y;
+                return x=0;
+            }
             return x+= (sizes[y] > x)+ IsDBCSLeadByte(h::Console::getInstance().sGetLine(2, y, x)[0]);
         }
         inline int fitXY() {
